@@ -1,7 +1,7 @@
 import copy
 import random
 
-#CLass
+
 class Node:
     def __init__(self, state=None, parent=None, action=None):
         self.state = state
