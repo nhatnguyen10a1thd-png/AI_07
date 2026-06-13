@@ -1,0 +1,152 @@
+{
+  "starter": [
+    {
+      "id": "starter_01",
+      "name": "Starter 01",
+      "difficulty": "Starter",
+      "holes": [[0, 2], [1, 0], [2, 1], [3, 3]],
+      "pieces": [
+        {
+          "id": "brown",
+          "type": "squirrel",
+          "shape": [[0, 0], [1, 0], [1, 1]],
+          "anchor": [0, 0],
+          "nut_offset": [1, 1],
+          "has_nut": true
+        },
+        {
+          "id": "white",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1]],
+          "anchor": [2, 0],
+          "nut_offset": [0, 1],
+          "has_nut": true
+        },
+        {
+          "id": "flower",
+          "type": "block",
+          "shape": [[0, 0]],
+          "anchor": [0, 3]
+        }
+      ]
+    },
+    {
+      "id": "starter_02",
+      "name": "Starter 02",
+      "difficulty": "Starter",
+      "holes": [[0, 2], [1, 0], [2, 1], [3, 3]],
+      "pieces": [
+        {
+          "id": "black",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1], [1, 1]],
+          "anchor": [1, 2],
+          "nut_offset": [0, 0],
+          "has_nut": true
+        },
+        {
+          "id": "orange",
+          "type": "squirrel",
+          "shape": [[0, 0], [1, 0]],
+          "anchor": [2, 3],
+          "nut_offset": [0, 0],
+          "has_nut": true
+        },
+        {
+          "id": "flower",
+          "type": "block",
+          "shape": [[0, 0]],
+          "anchor": [0, 2]
+        }
+      ]
+    }
+  ],
+  "junior": [
+    {
+      "id": "junior_01",
+      "name": "Junior 01",
+      "difficulty": "Junior",
+      "holes": [[0, 2], [1, 0], [2, 1], [3, 3]],
+      "pieces": [
+        {
+          "id": "brown",
+          "type": "squirrel",
+          "shape": [[0, 0], [1, 0], [1, 1]],
+          "anchor": [0, 0],
+          "nut_offset": [1, 1],
+          "has_nut": true
+        },
+        {
+          "id": "black",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1], [1, 1]],
+          "anchor": [1, 2],
+          "nut_offset": [0, 0],
+          "has_nut": true
+        },
+        {
+          "id": "white",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1]],
+          "anchor": [2, 0],
+          "nut_offset": [0, 1],
+          "has_nut": true
+        },
+        {
+          "id": "flower",
+          "type": "block",
+          "shape": [[0, 0]],
+          "anchor": [0, 3]
+        }
+      ]
+    }
+  ],
+  "expert": [
+    {
+      "id": "expert_01",
+      "name": "Expert 01",
+      "difficulty": "Expert",
+      "holes": [[0, 2], [1, 0], [2, 1], [3, 3]],
+      "pieces": [
+        {
+          "id": "brown",
+          "type": "squirrel",
+          "shape": [[0, 0], [1, 0], [1, 1]],
+          "anchor": [0, 0],
+          "nut_offset": [1, 1],
+          "has_nut": true
+        },
+        {
+          "id": "black",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1], [1, 1]],
+          "anchor": [1, 2],
+          "nut_offset": [0, 0],
+          "has_nut": true
+        },
+        {
+          "id": "white",
+          "type": "squirrel",
+          "shape": [[0, 0], [0, 1]],
+          "anchor": [2, 0],
+          "nut_offset": [0, 1],
+          "has_nut": true
+        },
+        {
+          "id": "orange",
+          "type": "squirrel",
+          "shape": [[0, 0], [1, 0]],
+          "anchor": [2, 3],
+          "nut_offset": [0, 0],
+          "has_nut": true
+        },
+        {
+          "id": "flower",
+          "type": "block",
+          "shape": [[0, 0]],
+          "anchor": [0, 3]
+        }
+      ]
+    }
+  ]
+}

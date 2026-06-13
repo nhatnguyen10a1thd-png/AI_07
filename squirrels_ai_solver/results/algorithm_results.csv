@@ -1,0 +1,12 @@
+﻿Level,Algorithm,Status,Solved,Steps,Visited,Generated,Time (s),Details
+Starter 01,BFS,done,Yes,3,12,28,0.001004,
+Starter 01,IDS,done,Yes,3,57,54,0.000999,
+Starter 01,A*,done,Yes,3,8,21,0.001003,
+Starter 01,Greedy,done,Yes,3,5,15,0.000995,
+Starter 01,Hill Climbing,done,No,N/A,2,7,0.000000,
+Starter 01,Simulated Annealing,done,No,N/A,117,136,0.004000,
+Starter 01,Minimax,done,No,N/A,885,865,0.012001,
+Starter 01,Alpha-Beta,done,No,N/A,530,510,0.008998,
+Starter 01,Backtracking,done,Yes,13,14,14,0.000000,
+Starter 01,Min-Conflicts,done,No,N/A,9,64,0.006998,
+Starter 01,Forward Planning,done,Yes,3,12,49,0.000000,
