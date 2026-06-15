@@ -2,124 +2,122 @@
 import pygame
 from ui.screen_manager import ScreenBase
 from ui.components.button import Button
+from ui.components.titlebar import TITLEBAR_H
 from core.constants import BG_COLOR, TEXT_COLOR, PANEL_COLOR, BORDER_COLOR
 
+
 class LevelSelectScreen(ScreenBase):
-    """Màn hình chọn Level được phân theo 3 cấp độ (Starter, Junior, Expert)."""
+    """Màn hình chọn Level — nội dung tránh TitleBar."""
     def __init__(self, app):
         super().__init__(app)
-        self.mode = "play"  # Mode passed in on enter ("play", "ai", "visualizer", "report")
+        self.mode = "play"
         self.selected_difficulty = "starter"
         self.back_button = None
         self.tab_buttons = {}
         self.level_buttons = []
-        
         self.setup_ui()
 
+    # ------------------------------------------------------------------ layout constants
+    @property
+    def _top(self):
+        """Y bắt đầu của nội dung (bên dưới TitleBar)."""
+        return TITLEBAR_H + 8
+
     def setup_ui(self):
-        font_btn = self.app.fonts["button"]
-        W = self.app.width
-        H = self.app.height
+        font_btn  = self.app.fonts["button"]
+        W, H = self.app.width, self.app.height
+        top = self._top
+
         self.tab_buttons = {}
-        
-        # 1. Back button to main menu
+
+        # Nút quay lại
         self.back_button = Button(
-            rect=(30, 25, 150, 40),
+            rect=(30, top + 10, 155, 40),
             text="← QUAY LẠI",
             font=self.app.fonts["body_bold"],
             callback=lambda: self.app.switch_to_screen("main_menu"),
-            color=(120, 115, 105)
+            color=(120, 115, 105),
         )
-        
-        # 2. Tabs for difficulties
+
+        # Tab chọn cấp độ
         diffs = [
-            (difficulty.upper(), difficulty)
-            for difficulty in self.app.level_manager.get_difficulties()
+            (d.upper(), d)
+            for d in self.app.level_manager.get_difficulties()
         ]
-        tab_w = min(160, max(110, (W - 140) // max(1, len(diffs))))
-        tab_h = 45
-        gap = 20
+        tab_w   = min(160, max(110, (W - 140) // max(1, len(diffs))))
+        tab_h   = 42
+        gap     = 18
         start_x = (W - (tab_w * len(diffs) + gap * (len(diffs) - 1))) // 2
-        
+        tab_y   = top + 70
+
         for idx, (label, diff_key) in enumerate(diffs):
             tx = start_x + idx * (tab_w + gap)
             self.tab_buttons[diff_key] = Button(
-                rect=(tx, 100, tab_w, tab_h),
+                rect=(tx, tab_y, tab_w, tab_h),
                 text=label,
                 font=font_btn,
                 callback=lambda k=diff_key: self.select_difficulty(k),
-                color=(79, 110, 138)
+                color=(79, 110, 138),
             )
 
     def on_enter(self, **kwargs):
         self.mode = kwargs.get("mode", "play")
-        self.setup_ui()  # Rebuild buttons for current window size
+        self.setup_ui()
         self.select_difficulty(self.selected_difficulty)
 
     def select_difficulty(self, diff_key):
         self.selected_difficulty = diff_key
-        
-        # Update tab button colors to highlight the active tab
         for key, btn in self.tab_buttons.items():
             if key == diff_key:
-                btn.base_color = (139, 115, 85) # Selected: warm wood color
+                btn.base_color  = (139, 115, 85)
                 btn.hover_color = (139, 115, 85)
             else:
-                btn.base_color = (79, 110, 138) # Default blue
+                btn.base_color  = (79, 110, 138)
                 btn.hover_color = (98, 132, 161)
-                
-        # Load levels of selected difficulty and create buttons for them
+
         self.level_buttons = []
         levels = self.app.level_manager.get_levels_by_difficulty(diff_key)
-        W = self.app.width
-        
-        card_w = min(260, (W - 100) // 4)
-        card_h = 180
-        margin_x = 30
-        margin_y = 30
-        
-        # Calculate start coordinates for level card grid layout
+        W, H  = self.app.width, self.app.height
+        top   = self._top
+
+        card_w    = min(260, (W - 100) // 4)
+        card_h    = 180
+        margin_x  = 30
+        margin_y  = 30
         grid_cols = 4
-        total_card_w = card_w * grid_cols + margin_x * (grid_cols - 1)
-        if total_card_w > W - 80:
+        total_w   = card_w * grid_cols + margin_x * (grid_cols - 1)
+        if total_w > W - 80:
             grid_cols = 3
-            total_card_w = card_w * grid_cols + margin_x * (grid_cols - 1)
-        start_x = (W - total_card_w) // 2
-        start_y = 200
-        
+            total_w   = card_w * grid_cols + margin_x * (grid_cols - 1)
+        start_x = (W - total_w) // 2
+        start_y = top + 135   # bên dưới header + tabs
+
         for idx, lvl in enumerate(levels):
             row = idx // grid_cols
             col = idx % grid_cols
-            
-            bx = start_x + col * (card_w + margin_x)
-            by = start_y + row * (card_h + margin_y)
-            
-            # Action button inside card
-            btn_y = by + card_h - 60
-            level_id = lvl["id"]
-            
-            # Button text depends on mode
+            bx  = start_x + col * (card_w + margin_x)
+            by  = start_y + row * (card_h + margin_y)
+
             btn_text = {
-                "play": "VÀO CHƠI",
-                "ai": "GIẢI AI",
+                "play":       "VÀO CHƠI",
+                "ai":         "GIẢI AI",
                 "visualizer": "MÔ PHỎNG",
-                "report": "BÁO CÁO",
+                "report":     "BÁO CÁO",
             }.get(self.mode, "MỞ")
-            
+
             self.level_buttons.append({
-                "lvl_data": lvl,
+                "lvl_data":  lvl,
                 "card_rect": pygame.Rect(bx, by, card_w, card_h),
                 "button": Button(
-                    rect=(bx + 20, btn_y, card_w - 40, 40),
+                    rect=(bx + 20, by + card_h - 58, card_w - 40, 40),
                     text=btn_text,
                     font=self.app.fonts["body_bold"],
-                    callback=lambda lid=level_id: self.select_level(lid),
-                    color=(46, 125, 50) if self.mode == "play" else (139, 115, 85)
-                )
+                    callback=lambda lid=lvl["id"]: self.select_level(lid),
+                    color=(46, 125, 50) if self.mode == "play" else (139, 115, 85),
+                ),
             })
 
     def select_level(self, level_id):
-        # Route to correct screen based on mode
         if self.mode == "play":
             self.app.switch_to_screen("game", difficulty=self.selected_difficulty, level_id=level_id, mode="play")
         elif self.mode == "ai":
@@ -137,60 +135,53 @@ class LevelSelectScreen(ScreenBase):
             card["button"].handle_event(event)
 
     def draw(self, surface):
+        W, H = self.app.width, self.app.height
+        top  = self._top
         surface.fill(BG_COLOR)
-        
-        # 1. Header label
+
+        # Header
         header_font = self.app.fonts["title"]
         mode_str = {
-            "play": "TỰ CHƠI GAME",
-            "ai": "AI SOLVER",
+            "play":       "TỰ CHƠI GAME",
+            "ai":         "AI SOLVER",
             "visualizer": "TRÌNH DIỄN THUẬT TOÁN",
-            "report": "BÁO CÁO HIỆU NĂNG",
+            "report":     "BÁO CÁO HIỆU NĂNG",
         }.get(self.mode, self.mode.upper())
-        header_surf = header_font.render(f"CHỌN LEVEL - CHẾ ĐỘ: {mode_str}", True, TEXT_COLOR)
-        header_rect = header_surf.get_rect(centerx=self.app.width // 2, y=35)
+        header_surf = header_font.render(f"CHỌN LEVEL  —  CHẾ ĐỘ: {mode_str}", True, TEXT_COLOR)
+        header_rect = header_surf.get_rect(centerx=W // 2, y=top + 18)
         surface.blit(header_surf, header_rect)
-        
-        # 2. Draw Back and Tab Buttons
+
+        # Back + tabs
         self.back_button.draw(surface)
         for btn in self.tab_buttons.values():
             btn.draw(surface)
-            
-        # 3. Draw Level Cards grid
+
+        # Level cards
         body_font = self.app.fonts["body"]
         body_bold = self.app.fonts["body_bold"]
-        
+
         for card in self.level_buttons:
             rect = card["card_rect"]
-            lvl = card["lvl_data"]
-            
-            # Card background
+            lvl  = card["lvl_data"]
+
             pygame.draw.rect(surface, PANEL_COLOR, rect, border_radius=12)
             pygame.draw.rect(surface, BORDER_COLOR, rect, width=2, border_radius=12)
-            
-            # Level title
-            title_surf = body_bold.render(lvl["name"], True, TEXT_COLOR)
-            title_rect = title_surf.get_rect(centerx=rect.centerx, y=rect.y + 20)
-            surface.blit(title_surf, title_rect)
-            
-            # Count squirrels and blocks
-            squirrel_count = sum(1 for p in lvl["pieces"] if p["type"] == "squirrel")
-            blocker_count = sum(1 for p in lvl["pieces"] if p["type"] == "block")
-            details_surf = body_font.render(f"Số Sóc: {squirrel_count} | Ô cản: {blocker_count}", True, (120, 115, 105))
-            details_rect = details_surf.get_rect(centerx=rect.centerx, y=rect.y + 55)
-            surface.blit(details_surf, details_rect)
 
-            target_moves = lvl.get("target_moves")
-            if target_moves:
-                target_surf = body_bold.render(f"Số bước chuẩn: {target_moves}", True, (139, 115, 85))
-                target_rect = target_surf.get_rect(centerx=rect.centerx, y=rect.y + 82)
-                surface.blit(target_surf, target_rect)
-            
-            # Draw card's action button
+            title_s = body_bold.render(lvl["name"], True, TEXT_COLOR)
+            surface.blit(title_s, title_s.get_rect(centerx=rect.centerx, y=rect.y + 18))
+
+            sq   = sum(1 for p in lvl["pieces"] if p["type"] == "squirrel")
+            blk  = sum(1 for p in lvl["pieces"] if p["type"] == "block")
+            det  = body_font.render(f"Số Sóc: {sq}  |  Ô cản: {blk}", True, (120, 115, 105))
+            surface.blit(det, det.get_rect(centerx=rect.centerx, y=rect.y + 52))
+
+            tm = lvl.get("target_moves")
+            if tm:
+                ts = body_bold.render(f"Số bước chuẩn: {tm}", True, (139, 115, 85))
+                surface.blit(ts, ts.get_rect(centerx=rect.centerx, y=rect.y + 80))
+
             card["button"].draw(surface)
-            
-        # If no levels
+
         if not self.level_buttons:
-            empty_surf = body_font.render("Chưa có level nào trong nhóm này.", True, (120, 115, 105))
-            empty_rect = empty_surf.get_rect(centerx=self.app.width // 2, y=300)
-            surface.blit(empty_surf, empty_rect)
+            empty = body_font.render("Chưa có level nào trong nhóm này.", True, (120, 115, 105))
+            surface.blit(empty, empty.get_rect(centerx=W // 2, y=top + 180))

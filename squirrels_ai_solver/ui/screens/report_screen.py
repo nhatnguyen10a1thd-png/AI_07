@@ -8,6 +8,7 @@ from ai.solver_interface import ALGORITHMS, solve
 from core.constants import BG_COLOR, BORDER_COLOR, PANEL_COLOR, TEXT_COLOR, TEXT_MUTED
 from core.rules import BoardRules
 from ui.components.button import Button
+from ui.components.titlebar import TITLEBAR_H
 from ui.components.toast import Toast
 from ui.screen_manager import ScreenBase
 
@@ -28,10 +29,13 @@ class ReportScreen(ScreenBase):
 
     def setup_ui(self):
         font_body = self.app.fonts["body_bold"]
-        font_btn = self.app.fonts["button"]
-        button_y = self.app.height - 65
+        font_btn  = self.app.fonts["button"]
+        W = self.app.width
+        H = self.app.height
+        button_y = H - 65
+        # Các nút được đặt theo tỷ lệ chiều rộng màn hình
         self.btn_menu = Button(
-            rect=(50, button_y, 160, 45), text="< MENU CHÍNH", font=font_body,
+            rect=(50, button_y, 160, 45), text="← MENU CHÍNH", font=font_body,
             callback=lambda: self.app.switch_to_screen("main_menu"), color=(120, 115, 105),
         )
         self.btn_levels = Button(
@@ -39,11 +43,11 @@ class ReportScreen(ScreenBase):
             callback=lambda: self.app.switch_to_screen("level_select", mode="report"), color=(79, 110, 138),
         )
         self.btn_run_all = Button(
-            rect=(850, button_y, 170, 45), text="CHẠY TẤT CẢ", font=font_btn,
+            rect=(W - 380, button_y, 170, 45), text="CHẠY TẤT CẢ", font=font_btn,
             callback=self.run_all_algorithms, color=(46, 125, 50),
         )
         self.btn_export = Button(
-            rect=(1040, button_y, 170, 45), text="XUẤT FILE CSV", font=font_btn,
+            rect=(W - 195, button_y, 170, 45), text="XUẤT FILE CSV", font=font_btn,
             callback=self.export_csv_report, color=(139, 115, 85),
         )
         self.btn_export.is_enabled = False
@@ -126,64 +130,92 @@ class ReportScreen(ScreenBase):
 
     def draw(self, surface):
         surface.fill(BG_COLOR)
-        title_font = self.app.fonts["title"]
-        body_font = self.app.fonts["body"]
-        body_bold = self.app.fonts["body_bold"]
-        body_small = self.app.fonts["body_small"]
+        W, H = self.app.width, self.app.height
+        top = TITLEBAR_H
+        title_font  = self.app.fonts["title"]
+        body_font   = self.app.fonts["body"]
+        body_bold   = self.app.fonts["body_bold"]
+        body_small  = self.app.fonts["body_small"]
 
         level_name = self.level_meta["name"] if self.level_meta else "-"
-        surface.blit(title_font.render(f"BÁO CÁO HIỆU NĂNG - MÀN: {level_name}", True, TEXT_COLOR), (50, 25))
+        surface.blit(title_font.render(f"BÁO CÁO HIỆU NĂNG - MÀN: {level_name}", True, TEXT_COLOR),
+                     (50, top + 12))
         surface.blit(body_font.render(
             f"Đầy đủ {len(ALGORITHMS)} thuật toán | Mỗi thuật toán được bảo vệ giới hạn RAM và thời gian.",
             True, TEXT_MUTED,
-        ), (52, 63))
+        ), (52, top + 48))
 
-        panel_rect = pygame.Rect(50, 95, 1180, 365)
+        # Bảng kết quả — tỷ lệ theo chiều rộng
+        margin_x  = 50
+        panel_w   = W - 2 * margin_x
+        panel_top = top + 78
+        panel_h   = 26 * (len(ALGORITHMS) + 1) + 45
+        panel_rect = pygame.Rect(margin_x, panel_top, panel_w, panel_h)
         pygame.draw.rect(surface, PANEL_COLOR, panel_rect, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, panel_rect, width=2, border_radius=14)
-        headers = ["THUẬT TOÁN", "KẾT QUẢ", "SỐ BƯỚC", "ĐÃ DUYỆT", "ĐÃ SINH", "THỜI GIAN (MS)"]
-        col_xs = [80, 300, 445, 590, 795, 1040]
+
+        # Cột header — chia đều theo panel_w
+        col_pcts = [0.06, 0.24, 0.40, 0.52, 0.64, 0.79]
+        col_xs   = [margin_x + int(p * panel_w) for p in col_pcts]
+        headers  = ["#", "THUẬT TOÁN", "KẾT QUẢ", "SỐ BƯỚC", "ĐÃ DUYỆT", "THỜI GIAN (MS)"]
+        hdr_y = panel_top + 12
         for x, header in zip(col_xs, headers):
-            surface.blit(body_bold.render(header, True, (139, 115, 85)), (x, 108))
-        pygame.draw.line(surface, BORDER_COLOR, (65, 139), (1215, 139), 2)
+            surface.blit(body_bold.render(header, True, (139, 115, 85)), (x, hdr_y))
+        pygame.draw.line(surface, BORDER_COLOR,
+                         (margin_x + 10, hdr_y + 26),
+                         (margin_x + panel_w - 10, hdr_y + 26), 2)
 
         for index, name in enumerate(ALGORITHMS):
             result = self.results.get(name) or self._pending_results()[name]
-            row_y = 147 + index * 27
+            row_y = hdr_y + 30 + index * 26
             if index % 2:
-                pygame.draw.rect(surface, (250, 248, 244), (65, row_y - 3, 1150, 26), border_radius=5)
+                pygame.draw.rect(surface, (250, 248, 244),
+                                 (margin_x + 8, row_y - 2, panel_w - 16, 24), border_radius=5)
             status, status_color = self._status(result)
             values = [
-                (name, body_bold, TEXT_COLOR),
-                (status, body_bold, status_color),
-                (str(len(result.path)) if result.solved else "-", body_font, TEXT_COLOR),
-                (f"{result.visited_count:,}", body_font, TEXT_COLOR),
-                (f"{result.generated_count:,}", body_font, TEXT_COLOR),
-                (f"{result.elapsed_time * 1000:.3f}", body_font, TEXT_COLOR),
+                (str(index + 1),                                     body_small, TEXT_MUTED),
+                (name,                                               body_bold,  TEXT_COLOR),
+                (status,                                             body_bold,  status_color),
+                (str(len(result.path)) if result.solved else "-",   body_font,  TEXT_COLOR),
+                (f"{result.visited_count:,}",                        body_font,  TEXT_COLOR),
+                (f"{result.elapsed_time * 1000:.3f}",               body_font,  TEXT_COLOR),
             ]
             for x, (value, font, color) in zip(col_xs, values):
                 surface.blit(font.render(value, True, color), (x, row_y))
 
-        chart_rect = pygame.Rect(50, 475, 1180, 180)
+        # Biểu đồ thanh
+        chart_top = panel_top + panel_h + 14
+        chart_h   = max(160, H - chart_top - 80)
+        chart_rect = pygame.Rect(margin_x, chart_top, panel_w, chart_h)
         pygame.draw.rect(surface, PANEL_COLOR, chart_rect, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, chart_rect, width=2, border_radius=14)
-        surface.blit(body_bold.render("SO SÁNH SỐ NÚT ĐÃ DUYỆT - ĐỦ TOÀN BỘ THUẬT TOÁN", True, TEXT_COLOR), (70, 487))
+        surface.blit(body_bold.render("SO SÁNH SỐ NÚT ĐÃ DUYỆT — ĐỦ TOÀN BỘ THUẬT TOÁN", True, TEXT_COLOR),
+                     (margin_x + 20, chart_top + 12))
 
-        max_visited = max(1, max((result.visited_count for result in self.results.values()), default=1))
-        start_x, spacing, bar_y, bar_max_h = 82, 102, 520, 82
+        max_visited = max(1, max((r.visited_count for r in self.results.values()), default=1))
+        n_algo      = len(ALGORITHMS)
+        bar_area_w  = panel_w - 40
+        spacing     = bar_area_w // max(1, n_algo)
+        bar_max_h   = chart_h - 60
+        bar_bottom  = chart_top + chart_h - 26
+
         for index, name in enumerate(ALGORITHMS):
             result = self.results.get(name) or self._pending_results()[name]
-            x = start_x + index * spacing
-            height = max(3, int(result.visited_count / max_visited * bar_max_h))
+            x      = margin_x + 20 + index * spacing
+            bar_h  = max(3, int(result.visited_count / max_visited * bar_max_h))
             status = result.extra.get("report_status", "done")
-            color = (190, 190, 190) if status == "pending" else ((70, 160, 95) if result.solved else (210, 92, 75))
-            pygame.draw.rect(surface, color, (x, bar_y + bar_max_h - height, 46, height), border_radius=5)
-            label = name.replace("Simulated ", "Sim. ").replace("Forward ", "Fwd. ").replace("Backtracking", "Backtrack")
+            color  = (190, 190, 190) if status == "pending" else \
+                     ((70, 160, 95) if result.solved else (210, 92, 75))
+            bar_w  = max(20, spacing - 14)
+            pygame.draw.rect(surface, color,
+                             (x, bar_bottom - bar_h, bar_w, bar_h), border_radius=5)
+            label = name.replace("Simulated ", "Sim. ").replace("Forward ", "Fwd. ").replace("Backtracking", "BT")
             text = body_small.render(label, True, TEXT_COLOR)
-            surface.blit(text, text.get_rect(centerx=x + 23, y=bar_y + bar_max_h + 7))
+            surface.blit(text, text.get_rect(centerx=x + bar_w // 2, y=bar_bottom + 4))
 
         self.btn_menu.draw(surface)
         self.btn_levels.draw(surface)
         self.btn_run_all.draw(surface)
         self.btn_export.draw(surface)
         self.toast.draw(surface)
+

@@ -6,8 +6,12 @@ from core.rules import BoardRules
 from ui.components.button import Button
 from ui.components.dropdown import Dropdown
 from ui.components.scrollbar import Scrollbar
+from ui.components.titlebar import TITLEBAR_H
 from ui.renderers.board_renderer import draw_board
 from ui.screen_manager import ScreenBase
+
+# Màu hint khi chưa chạy
+_HINT_COLOR = (140, 135, 125)
 
 
 class AlgorithmScreen(ScreenBase):
@@ -15,33 +19,36 @@ class AlgorithmScreen(ScreenBase):
 
     def __init__(self, app):
         super().__init__(app)
-        self.difficulty = "starter"
-        self.level_id = "starter_01"
-        self.level_meta = None
+        self.difficulty    = "starter"
+        self.level_id      = "starter_01"
+        self.level_meta    = None
         self.initial_state = None
         self.current_state = None
-        self.rules = BoardRules()
+        self.rules         = BoardRules()
 
-        self.result = None
-        self.solver_steps = []
-        self.step_idx = 0
-        self.current_algo = "A*"
-        self.is_playing = False
-        self.play_timer = 0.0
-        self.play_speed = 0.55
+        self.result        = None       # None = chưa chạy
+        self.solver_steps  = []
+        self.step_idx      = 0
+        self.current_algo  = list(ALGORITHMS.keys())[2]  # mặc định A*
+        self.is_playing    = False
+        self.play_timer    = 0.0
+        self.play_speed    = 0.55
 
         self.log_scroll_offset = 0
-        self.log_row_h = 25
-        self.log_visible_rows = 1
-        self.log_area_rect = pygame.Rect(0, 0, 0, 0)
-        self.log_scrollbar = Scrollbar((0, 0, 12, 100), self._set_log_offset)
+        self.log_row_h         = 25
+        self.log_visible_rows  = 1
+        self.log_area_rect     = pygame.Rect(0, 0, 0, 0)
+        self.log_scrollbar     = Scrollbar((0, 0, 12, 100), self._set_log_offset)
         self.setup_ui()
 
+    # ------------------------------------------------------------------
     def setup_ui(self):
-        font_btn = self.app.fonts["button"]
+        font_btn  = self.app.fonts["button"]
         font_body = self.app.fonts["body_bold"]
-        bottom_y = self.app.height - 62
-        right_x = int(self.app.width * 0.54)
+        top       = TITLEBAR_H
+        bottom_y  = self.app.height - 62
+        right_x   = int(self.app.width * 0.54)
+        ctrl_y    = top + 36
 
         self.btn_menu = Button(
             (25, bottom_y, 135, 42), "← MENU", font_body,
@@ -58,11 +65,11 @@ class AlgorithmScreen(ScreenBase):
         )
 
         self.algo_dropdown = Dropdown(
-            (right_x, 72, 255, 38), list(ALGORITHMS.keys()),
+            (right_x, ctrl_y, 255, 38), list(ALGORITHMS.keys()),
             self.app.fonts["body_bold"], default_index=2
         )
         self.btn_start = Button(
-            (right_x + 270, 72, 110, 38), "BẮT ĐẦU", font_btn,
+            (right_x + 270, ctrl_y, 110, 38), "BẮT ĐẦU", font_btn,
             self.start_visualization, color=(46, 125, 50)
         )
         self.btn_prev = Button(
@@ -77,36 +84,53 @@ class AlgorithmScreen(ScreenBase):
             (right_x + 240, bottom_y, 125, 42), "▶ TỰ CHẠY", font_body,
             self.toggle_play, color=(46, 125, 50)
         )
+        self._top     = top
+        self._ctrl_y  = ctrl_y
+        self._right_x = right_x
 
+    # ------------------------------------------------------------------
     def on_enter(self, **kwargs):
         self.difficulty = kwargs.get("difficulty", "starter")
-        self.level_id = kwargs.get("level_id", "starter_01")
+        self.level_id   = kwargs.get("level_id",   "starter_01")
         self.level_meta, self.initial_state = self.app.level_manager.load_level(
             self.difficulty, self.level_id
         )
-        self.current_state = self.initial_state.clone()
+        # Hiển thị trạng thái ban đầu nhưng KHÔNG tự chạy thuật toán
+        self.current_state     = self.initial_state.clone()
+        self.result            = None
+        self.solver_steps      = []
+        self.step_idx          = 0
+        self.log_scroll_offset = 0
+        self.is_playing        = False
+        self.play_timer        = 0.0
         self.setup_ui()
-        self.start_visualization()
 
+    # ------------------------------------------------------------------
     def reset_visualizer(self):
-        self.current_state = self.initial_state.clone()
-        self.step_idx = 0
-        self.play_timer = 0.0
+        if self.initial_state is None:
+            return
+        self.current_state     = self.initial_state.clone()
+        self.result            = None
+        self.solver_steps      = []
+        self.step_idx          = 0
+        self.log_scroll_offset = 0
+        self.play_timer        = 0.0
         self.set_playing(False)
-        self._auto_scroll_log()
 
     def start_visualization(self):
-        self.current_algo = self.algo_dropdown.get_selected()
-        self.result = solve(self.current_algo, self.initial_state, self.rules)
-        self.solver_steps = self.result.steps or [(0, "Trạng thái ban đầu", self.initial_state)]
-        self.step_idx = 0
-        self.play_timer = 0.0
+        if self.initial_state is None:
+            return
+        self.current_algo  = self.algo_dropdown.get_selected()
+        self.result        = solve(self.current_algo, self.initial_state, self.rules)
+        self.solver_steps  = self.result.steps or [(0, "Trạng thái ban đầu", self.initial_state)]
+        self.step_idx      = 0
+        self.play_timer    = 0.0
         self.set_playing(False)
         self.log_scroll_offset = 0
         self.current_state = self.solver_steps[0][2]
 
     def next_step(self):
-        if self.step_idx >= len(self.solver_steps) - 1:
+        if not self.solver_steps or self.step_idx >= len(self.solver_steps) - 1:
             self.set_playing(False)
             return
         self.step_idx += 1
@@ -114,21 +138,22 @@ class AlgorithmScreen(ScreenBase):
         self._auto_scroll_log()
 
     def prev_step(self):
-        if self.step_idx <= 0:
+        if not self.solver_steps or self.step_idx <= 0:
             return
         self.step_idx -= 1
         self.current_state = self.solver_steps[self.step_idx][2]
         self._auto_scroll_log()
 
     def toggle_play(self):
-        if len(self.solver_steps) > 1:
+        if self.solver_steps and len(self.solver_steps) > 1:
             self.set_playing(not self.is_playing)
 
     def set_playing(self, is_playing):
         self.is_playing = is_playing
-        self.btn_play.text = "⏸ DỪNG" if is_playing else "▶ TỰ CHẠY"
+        self.btn_play.text       = "⏸ DỪNG"  if is_playing else "▶ TỰ CHẠY"
         self.btn_play.base_color = (245, 124, 0) if is_playing else (46, 125, 50)
 
+    # ------------------------------------------------------------------
     def _set_log_offset(self, offset):
         self.log_scroll_offset = offset
 
@@ -151,6 +176,7 @@ class AlgorithmScreen(ScreenBase):
             self.log_scroll_offset = self.step_idx - self.log_visible_rows + 1
         self.log_scroll_offset = min(max_offset, self.log_scroll_offset)
 
+    # ------------------------------------------------------------------
     def handle_event(self, event):
         for button in (
             self.btn_menu, self.btn_levels, self.btn_reset,
@@ -170,11 +196,11 @@ class AlgorithmScreen(ScreenBase):
             return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.log_area_rect.collidepoint(event.pos):
-                row = (event.pos[1] - self.log_area_rect.y - 4) // self.log_row_h
+            if self.log_area_rect.collidepoint(event.pos) and self.solver_steps:
+                row   = (event.pos[1] - self.log_area_rect.y - 4) // self.log_row_h
                 index = self.log_scroll_offset + row
                 if 0 <= index < len(self.solver_steps):
-                    self.step_idx = index
+                    self.step_idx      = index
                     self.current_state = self.solver_steps[index][2]
                     self.set_playing(False)
 
@@ -185,69 +211,121 @@ class AlgorithmScreen(ScreenBase):
                 self.play_timer = 0.0
                 self.next_step()
 
+    # ------------------------------------------------------------------
     def draw(self, surface):
         width, height = self.app.width, self.app.height
+        top     = self._top
+        ctrl_y  = self._ctrl_y
+        right_x = self._right_x
         surface.fill(BG_COLOR)
+
         title_font = self.app.fonts["title"]
-        body = self.app.fonts["body"]
-        body_bold = self.app.fonts["body_bold"]
-        mono = self.app.fonts["mono"]
+        body       = self.app.fonts["body"]
+        body_bold  = self.app.fonts["body_bold"]
+        body_small = self.app.fonts["body_small"]
+        mono       = self.app.fonts["mono"]
 
-        surface.blit(title_font.render("TRÌNH DIỄN THUẬT TOÁN", True, TEXT_COLOR), (25, 18))
-        subtitle = f"Màn: {self.level_meta['name']}  |  Thuật toán: {self.current_algo}"
-        surface.blit(body.render(subtitle, True, TEXT_MUTED), (25, 52))
+        # ── Tiêu đề trái ────────────────────────────────────────────────
+        surface.blit(title_font.render("TRÌNH DIỄN THUẬT TOÁN", True, TEXT_COLOR), (25, top + 8))
+        level_name = self.level_meta["name"] if self.level_meta else "—"
+        algo_name  = self.current_algo if self.result else "Chưa chạy"
+        subtitle   = f"Màn: {level_name}  |  Thuật toán: {algo_name}"
+        surface.blit(body.render(subtitle, True, TEXT_MUTED), (25, top + 38))
 
-        board_rect = pygame.Rect(25, 85, int(width * 0.50), height - 165)
-        draw_board(surface, self.current_state, board_rect)
+        # ── Bảng game (bên trái) ────────────────────────────────────────
+        board_rect = pygame.Rect(25, top + 82, int(width * 0.50), height - top - 160)
+        if self.current_state:
+            draw_board(surface, self.current_state, board_rect)
+        else:
+            # Placeholder khi chưa load level
+            pygame.draw.rect(surface, PANEL_COLOR, board_rect, border_radius=14)
+            pygame.draw.rect(surface, BORDER_COLOR, board_rect, width=2, border_radius=14)
 
-        right_x = int(width * 0.54)
-        right_w = width - right_x - 20
-        panel = pygame.Rect(right_x - 10, 15, right_w + 10, height - 90)
+        # ── Panel bên phải ──────────────────────────────────────────────
+        right_w  = width - right_x - 20
+        # Panel chiếm hết từ dưới TitleBar đến trên nút bottom
+        panel_h  = height - top - 82
+        panel    = pygame.Rect(right_x - 10, top + 4, right_w + 10, panel_h)
         pygame.draw.rect(surface, PANEL_COLOR, panel, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, panel, width=2, border_radius=14)
 
-        surface.blit(body.render("Chọn thuật toán:", True, TEXT_MUTED), (right_x, 48))
-        status_y = 125
-        solved = bool(self.result and self.result.solved)
-        status = "ĐÃ TÌM THẤY LỜI GIẢI" if solved else "KHÔNG TÌM THẤY LỜI GIẢI"
-        status_color = (46, 125, 50) if solved else (190, 55, 55)
-        surface.blit(body_bold.render(status, True, status_color), (right_x, status_y))
+        # Nhãn dropdown
+        surface.blit(body.render("Chọn thuật toán:", True, TEXT_MUTED), (right_x, ctrl_y - 20))
 
-        if self.result:
+        # ── Kết quả / trạng thái ────────────────────────────────────────
+        status_y = ctrl_y + 52
+        if self.result is None:
+            # Chưa chạy → hint
+            hint_lines = [
+                "Chọn thuật toán ở dropdown",
+                "rồi bấm  BẮT ĐẦU  để xem kết quả.",
+            ]
+            for i, ln in enumerate(hint_lines):
+                surface.blit(body.render(ln, True, _HINT_COLOR), (right_x, status_y + i * 26))
+        else:
+            solved       = self.result.solved
+            status_str   = "ĐÃ TÌM THẤY LỜI GIẢI" if solved else "KHÔNG TÌM THẤY LỜI GIẢI"
+            status_color = (46, 125, 50) if solved else (190, 55, 55)
+            surface.blit(body_bold.render(status_str, True, status_color), (right_x, status_y))
             summary = (
                 f"Log: {len(self.solver_steps):,} | Hiện tại: {self.step_idx + 1:,} | "
                 f"Visited: {self.result.visited_count:,} | {self.result.elapsed_time * 1000:.1f} ms"
             )
             surface.blit(body.render(summary, True, TEXT_MUTED), (right_x, status_y + 27))
 
+        # ── Nhật ký duyệt ───────────────────────────────────────────────
         log_title_y = status_y + 65
-        surface.blit(body_bold.render("NHẬT KÝ DUYỆT - click dòng để xem trạng thái", True, TEXT_COLOR),
-                     (right_x, log_title_y))
-        self.log_area_rect = pygame.Rect(right_x, log_title_y + 28, right_w, height - log_title_y - 112)
+        surface.blit(
+            body_bold.render("NHẬT KÝ DUYỆT — click dòng để xem trạng thái", True, TEXT_COLOR),
+            (right_x, log_title_y)
+        )
+
+        # log_area kết thúc 112px trước bottom (chỗ nút + chú thích)
+        log_area_h = height - log_title_y - 130
+        self.log_area_rect = pygame.Rect(right_x, log_title_y + 28, right_w, max(60, log_area_h))
         pygame.draw.rect(surface, (248, 248, 246), self.log_area_rect, border_radius=8)
-        pygame.draw.rect(surface, BORDER_COLOR, self.log_area_rect, width=1, border_radius=8)
+        pygame.draw.rect(surface, BORDER_COLOR,    self.log_area_rect, width=1, border_radius=8)
         self._sync_scrollbar()
 
-        clip = surface.subsurface(self.log_area_rect)
-        text_width = self.log_area_rect.width - 28
-        for row in range(self.log_visible_rows):
-            index = self.log_scroll_offset + row
-            if index >= len(self.solver_steps):
-                break
-            step_num, description, _ = self.solver_steps[index]
-            y = 4 + row * self.log_row_h
-            active = index == self.step_idx
-            if active:
-                pygame.draw.rect(clip, (220, 239, 224), (3, y, text_width + 10, self.log_row_h - 1),
-                                 border_radius=4)
-            prefix = "▶" if active else " "
-            text = f"{prefix} [{step_num:04d}] {description}"
-            while mono.size(text)[0] > text_width and len(text) > 4:
-                text = text[:-2] + "…"
-            color = (30, 115, 55) if active else TEXT_COLOR
-            clip.blit(mono.render(text, True, color), (8, y + 3))
+        if not self.solver_steps:
+            # Placeholder text khi chưa chạy
+            ph = body.render("Chưa có nhật ký — bấm BẮT ĐẦU để chạy thuật toán.", True, _HINT_COLOR)
+            surface.blit(ph, ph.get_rect(centerx=self.log_area_rect.centerx,
+                                          y=self.log_area_rect.y + 12))
+        else:
+            clip       = surface.subsurface(self.log_area_rect)
+            text_width = self.log_area_rect.width - 28
+            for row in range(self.log_visible_rows):
+                index = self.log_scroll_offset + row
+                if index >= len(self.solver_steps):
+                    break
+                step_num, description, _ = self.solver_steps[index]
+                y      = 4 + row * self.log_row_h
+                active = (index == self.step_idx)
+                if active:
+                    pygame.draw.rect(clip, (220, 239, 224),
+                                     (3, y, text_width + 10, self.log_row_h - 1), border_radius=4)
+                prefix = "▶" if active else " "
+                text   = f"{prefix} [{step_num:04d}] {description}"
+                while mono.size(text)[0] > text_width and len(text) > 4:
+                    text = text[:-2] + "…"
+                color = (30, 115, 55) if active else TEXT_COLOR
+                clip.blit(mono.render(text, True, color), (8, y + 3))
 
         self.log_scrollbar.draw(surface)
+
+        # ── Chú thích bên phải — đặt BÊN DƯỚI log, phía trên nút bottom ─
+        note_y = self.log_area_rect.bottom + 8
+        notes  = [
+            "• Click dòng log → xem trạng thái tương ứng",
+            "• ◀ / ▶ : di chuyển từng bước  |  TỰ CHẠY: tự động",
+            "• ĐẶT LẠI : xóa kết quả, trở về trạng thái ban đầu",
+        ]
+        for i, note in enumerate(notes):
+            ns = body_small.render(note, True, TEXT_MUTED)
+            surface.blit(ns, (right_x, note_y + i * 20))
+
+        # ── Dropdown + buttons ───────────────────────────────────────────
         self.algo_dropdown.draw(surface)
         for button in (
             self.btn_start, self.btn_menu, self.btn_levels, self.btn_reset,

@@ -13,9 +13,9 @@ DIRECTIONS = {
 # The default holes on the physical Squirrels Go Nuts board
 DEFAULT_HOLES = {(0, 2), (1, 0), (2, 1), (3, 3)}
 
-# Screen dimensions
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 800
+# Screen dimensions — 0 means auto-detect from monitor at runtime
+SCREEN_WIDTH = 0
+SCREEN_HEIGHT = 0
 FPS = 60
 
 # Beautiful Color Palette (Premium HSL/Hex values)

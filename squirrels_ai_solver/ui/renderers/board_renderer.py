@@ -9,15 +9,25 @@ from core.constants import (
 )
 
 
+# Default CELL_SIZE is used for icon/acorn rendering outside of draw_board.
+# The actual cell size during board rendering is computed dynamically.
 CELL_SIZE = 90
 AA_SCALE = 3
 ICON_CANVAS_SIZE = 90
 
 
+def get_cell_size(board_rect):
+    """Compute the best square cell size to fit a 4x4 grid inside board_rect."""
+    max_cell_w = board_rect.width // 4
+    max_cell_h = board_rect.height // 4
+    return min(max_cell_w, max_cell_h, 130)  # cap at 130 px for very large monitors
+
+
 def get_cell_pos(row, col, board_rect):
-    offset_x = board_rect.x + (board_rect.width - 4 * CELL_SIZE) // 2
-    offset_y = board_rect.y + (board_rect.height - 4 * CELL_SIZE) // 2
-    return offset_x + col * CELL_SIZE, offset_y + row * CELL_SIZE
+    cell = get_cell_size(board_rect)
+    offset_x = board_rect.x + (board_rect.width - 4 * cell) // 2
+    offset_y = board_rect.y + (board_rect.height - 4 * cell) // 2
+    return offset_x + col * cell, offset_y + row * cell
 
 
 def _shade(color, amount):
@@ -130,6 +140,7 @@ def _squirrel_layout(piece):
 
 def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=None, animations=None):
     animations = animations or {}
+    cell_sz = get_cell_size(board_rect)  # dynamic cell size based on actual board area
 
     pygame.draw.rect(surface, (66, 48, 34), board_rect.move(0, 7), border_radius=22)
     pygame.draw.rect(surface, BOARD_BG_COLOR, board_rect, border_radius=20)
@@ -140,7 +151,7 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
     for r in range(4):
         for c in range(4):
             x, y = get_cell_pos(r, c, board_rect)
-            cell = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE).inflate(-7, -7)
+            cell = pygame.Rect(x, y, cell_sz, cell_sz).inflate(-7, -7)
             pygame.draw.rect(surface, _shade(CELL_BG_COLOR, -18), cell.move(0, 3), border_radius=10)
             pygame.draw.rect(surface, CELL_BG_COLOR, cell, border_radius=10)
             pygame.draw.line(surface, _shade(CELL_BG_COLOR, 18), (cell.x + 10, cell.y + 8), (cell.right - 10, cell.y + 8), 2)
@@ -150,10 +161,10 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
 
     for row, col in state.holes:
         x, y = get_cell_pos(row, col, board_rect)
-        center = (x + CELL_SIZE // 2, y + CELL_SIZE // 2)
-        pygame.draw.circle(surface, (70, 53, 38), (center[0], center[1] + 4), CELL_SIZE // 3 + 2)
-        pygame.draw.circle(surface, HOLE_BORDER_COLOR, center, CELL_SIZE // 3 + 1)
-        pygame.draw.circle(surface, HOLE_COLOR, center, CELL_SIZE // 3 - 3)
+        center = (x + cell_sz // 2, y + cell_sz // 2)
+        pygame.draw.circle(surface, (70, 53, 38), (center[0], center[1] + 4), cell_sz // 3 + 2)
+        pygame.draw.circle(surface, HOLE_BORDER_COLOR, center, cell_sz // 3 + 1)
+        pygame.draw.circle(surface, HOLE_COLOR, center, cell_sz // 3 - 3)
         pygame.draw.circle(surface, (80, 70, 58), (center[0] - 8, center[1] - 9), 8)
         if (row, col) in state.filled_holes:
             draw_acorn(surface, center, scale=0.58, is_dropped=True)
@@ -166,7 +177,7 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
                 continue
             dr, dc = DIRECTIONS[direction]
             x, y = get_cell_pos(piece.anchor[0] + dr, piece.anchor[1] + dc, board_rect)
-            target = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE).inflate(-12, -12)
+            target = pygame.Rect(x, y, cell_sz, cell_sz).inflate(-12, -12)
             pygame.draw.rect(surface, _shade(HIGHLIGHT_COLOR, -35), target, width=5, border_radius=14)
             pygame.draw.circle(surface, HIGHLIGHT_COLOR, target.center, 8)
 
@@ -182,7 +193,7 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
         cells = piece.occupied_cells(anchor)
         for row, col in cells:
             x, y = get_cell_pos(row, col, board_rect)
-            rect = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE).inflate(-11, -11)
+            rect = pygame.Rect(x, y, cell_sz, cell_sz).inflate(-11, -11)
             pygame.draw.rect(surface, _shade(color, -55), rect.move(0, 3), border_radius=14)
             pygame.draw.rect(surface, color, rect, border_radius=14)
             pygame.draw.line(surface, _shade(color, 50), (rect.x + 10, rect.y + 7), (rect.right - 10, rect.y + 7), 2)
@@ -198,7 +209,7 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
                 x1, y1 = get_cell_pos(first[0], first[1], board_rect)
                 x2, y2 = get_cell_pos(second[0], second[1], board_rect)
                 bridge = pygame.Rect(min(x1, x2) + 18, min(y1, y2) + 18,
-                                     abs(x1 - x2) + CELL_SIZE - 36, abs(y1 - y2) + CELL_SIZE - 36)
+                                     abs(x1 - x2) + cell_sz - 36, abs(y1 - y2) + cell_sz - 36)
                 pygame.draw.rect(surface, color, bridge, border_radius=8)
 
         if piece.type == "squirrel":
@@ -208,18 +219,18 @@ def draw_board(surface, state, board_rect, selected_piece_id=None, legal_moves=N
             icon_offset, direction = _squirrel_layout(piece)
             icon_cell = (anchor[0] + icon_offset[0], anchor[1] + icon_offset[1])
             icon_x, icon_y = get_cell_pos(icon_cell[0], icon_cell[1], board_rect)
-            draw_squirrel(surface, (icon_x + CELL_SIZE // 2, icon_y + CELL_SIZE // 2), color, direction)
+            draw_squirrel(surface, (icon_x + cell_sz // 2, icon_y + cell_sz // 2), color, direction)
             if nut_position:
                 nut_x, nut_y = get_cell_pos(nut_position[0], nut_position[1], board_rect)
-                center = (nut_x + CELL_SIZE // 2, nut_y + CELL_SIZE // 2)
-                pygame.draw.circle(surface, (55, 42, 31), (center[0], center[1] + 2), CELL_SIZE // 4 + 2)
-                pygame.draw.circle(surface, NUT_SLOT_COLOR, center, CELL_SIZE // 4 - 2)
-                pygame.draw.circle(surface, _shade(NUT_SLOT_COLOR, 24), center, CELL_SIZE // 4 - 2, 2)
+                center = (nut_x + cell_sz // 2, nut_y + cell_sz // 2)
+                pygame.draw.circle(surface, (55, 42, 31), (center[0], center[1] + 2), cell_sz // 4 + 2)
+                pygame.draw.circle(surface, NUT_SLOT_COLOR, center, cell_sz // 4 - 2)
+                pygame.draw.circle(surface, _shade(NUT_SLOT_COLOR, 24), center, cell_sz // 4 - 2, 2)
                 if piece.has_nut:
                     draw_acorn(surface, center, scale=0.72)
         elif piece.id == "flower":
             x, y = get_cell_pos(anchor[0], anchor[1], board_rect)
-            draw_flower(surface, (x + CELL_SIZE // 2, y + CELL_SIZE // 2))
+            draw_flower(surface, (x + cell_sz // 2, y + cell_sz // 2))
 
 
 def make_app_icon():

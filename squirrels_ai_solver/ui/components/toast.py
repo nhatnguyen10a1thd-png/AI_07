@@ -1,23 +1,28 @@
 # ui/components/toast.py
+"""
+Toast thông báo nổi — luôn hiển thị chính giữa màn hình theo kích thước surface thực tế.
+"""
 import pygame
-from core.constants import SCREEN_WIDTH
+
 
 class Toast:
-    """Displays temporary overlay notifications that automatically fade out."""
+    """Hiển thị thông báo tạm thời ở chính giữa màn hình, tự động mờ dần."""
+
     def __init__(self, font):
-        self.font = font
-        self.message = ""
-        self.duration = 2.0  # seconds
-        self.timer = 0.0
-        self.active = False
-        self.bg_color = (40, 40, 40, 230) # Dark translucent
+        self.font       = font
+        self.message    = ""
+        self.duration   = 2.5
+        self.timer      = 0.0
+        self.active     = False
+        self.bg_color   = (30, 30, 28)
         self.text_color = (255, 255, 255)
 
-    def show(self, message, duration=2.0):
-        self.message = message
+    # ------------------------------------------------------------------
+    def show(self, message, duration=2.5):
+        self.message  = message
         self.duration = duration
-        self.timer = duration
-        self.active = True
+        self.timer    = duration
+        self.active   = True
 
     def update(self, dt):
         if not self.active:
@@ -26,42 +31,44 @@ class Toast:
         if self.timer <= 0:
             self.active = False
 
+    # ------------------------------------------------------------------
     def draw(self, surface):
         if not self.active:
             return
 
-        # Render message text
-        text_surf = self.font.render(self.message, True, self.text_color)
-        text_rect = text_surf.get_rect()
-        
-        # Calculate padding and box size
-        padding_x = 20
-        padding_y = 12
-        box_width = text_rect.width + padding_x * 2
-        box_height = text_rect.height + padding_y * 2
-        
-        # Bottom center positioning
-        box_x = (SCREEN_WIDTH - box_width) // 2
-        box_y = 600
-        
-        # Create translucent box surface
-        toast_surf = pygame.Surface((box_width, box_height), pygame.SRCALPHA)
-        
-        # Compute alpha fadeout
+        SW, SH = surface.get_size()   # kích thước màn hình thực tế
+
+        # Alpha fade-out trong 0.5s cuối
         alpha = 255
         if self.timer < 0.5:
-            alpha = int((self.timer / 0.5) * 255)
-            alpha = max(0, min(255, alpha))
-            
-        # Draw rounded rect on the surface
-        bg = (self.bg_color[0], self.bg_color[1], self.bg_color[2], int(alpha * 0.9))
-        pygame.draw.rect(toast_surf, bg, (0, 0, box_width, box_height), border_radius=8)
-        
-        # Render text onto surface
-        text_color_alpha = (self.text_color[0], self.text_color[1], self.text_color[2], alpha)
-        text_surf_faded = self.font.render(self.message, True, text_color_alpha)
-        text_surf_rect = text_surf_faded.get_rect(center=(box_width // 2, box_height // 2))
-        toast_surf.blit(text_surf_faded, text_surf_rect)
-        
-        # Draw on main screen
-        surface.blit(toast_surf, (box_x, box_y))
+            alpha = max(0, int(self.timer / 0.5 * 255))
+
+        # Render text
+        text_surf = self.font.render(self.message, True, self.text_color)
+        tw, th    = text_surf.get_size()
+
+        px, py    = 24, 14
+        bw        = tw + px * 2
+        bh        = th + py * 2
+
+        # Vị trí: chính giữa màn hình theo chiều ngang, 60% chiều cao
+        bx = (SW - bw) // 2
+        by = int(SH * 0.60)
+
+        # Bề mặt với alpha
+        toast = pygame.Surface((bw, bh), pygame.SRCALPHA)
+
+        # Nền tối bo góc
+        bg_a = int(220 * alpha / 255)
+        pygame.draw.rect(toast, (*self.bg_color, bg_a), (0, 0, bw, bh), border_radius=10)
+        # Viền nhẹ
+        border_a = int(80 * alpha / 255)
+        pygame.draw.rect(toast, (255, 255, 255, border_a), (0, 0, bw, bh),
+                         width=1, border_radius=10)
+
+        # Chữ
+        text_a = self.font.render(self.message, True,
+                                  (*self.text_color, alpha))
+        toast.blit(text_a, text_a.get_rect(center=(bw // 2, bh // 2)))
+
+        surface.blit(toast, (bx, by))
