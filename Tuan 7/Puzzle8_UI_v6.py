@@ -343,7 +343,7 @@ def UCS(problem):
     return None, None, steps
 
 
-def depth_limited_search(problem, node, limit, path_set, steps, step_num, current_depth_limit):
+def depth_limited_search(problem, node, limit, path_set, steps, current_depth_limit):
     if problem.goal_test(node.state):
         add_step(steps, f"DLS. Kiểm tra goal tại depth={node.depth}: đạt → trả về nút", node.state)
         return node
@@ -358,7 +358,7 @@ def depth_limited_search(problem, node, limit, path_set, steps, step_num, curren
             continue
         path_set.add(state_to_tuple(child.state))
         add_step(steps, f"DLS. Đi {action} tới depth={child.depth}; giới hạn vòng hiện tại={current_depth_limit}", child.state)
-        result = depth_limited_search(problem, child, limit - 1, path_set, steps, step_num, current_depth_limit)
+        result = depth_limited_search(problem, child, limit - 1, path_set, steps, current_depth_limit)
         if result == "cutoff":
             cutoff = True
         elif result:
@@ -377,10 +377,9 @@ def IDS(problem, max_depth):
     failure = parity_failure(problem, steps)
     if failure:
         return failure
-    step_num = [1]
     for depth in range(max(0, max_depth) + 1):
         add_step(steps, f"B2. Bắt đầu Depth-Limited Search với limit={depth}", start.state)
-        result = depth_limited_search(problem, start, depth, {state_to_tuple(start.state)}, steps, step_num, depth)
+        result = depth_limited_search(problem, start, depth, {state_to_tuple(start.state)}, steps, depth)
         if result != "cutoff" and result:
             add_step(steps, f"B3. DLS limit={depth} tìm thấy goal → trả về lời giải", result.state)
             actions, states = solution(result)
@@ -500,7 +499,7 @@ def A_Star(problem):
 #  THUẬT TOÁN IDA* (Iterative Deepening A*)
 # ============================================================
 
-def _ida_search(node, g, threshold, problem, steps, step_num, path_set):
+def _ida_search(node, g, threshold, problem, steps, path_set):
     h = manhattan_distance(node.state, problem.goal)
     f = g + h
 
@@ -529,7 +528,7 @@ def _ida_search(node, g, threshold, problem, steps, step_num, path_set):
         add_step(steps, f"IDA*. Đi {action}: f={f_child} = g={g+1} + h={h_child}", child.state)
 
         path_set.add(next_key)
-        result = _ida_search(child, g + 1, threshold, problem, steps, step_num, path_set)
+        result = _ida_search(child, g + 1, threshold, problem, steps, path_set)
         path_set.remove(next_key)
 
         if isinstance(result, Node):
@@ -552,8 +551,6 @@ def IDA_Star(problem):
     failure = parity_failure(problem, steps)
     if failure:
         return failure
-    step_num = [1]
-
     while True:
         add_step(steps, f"B2. Bắt đầu DFS giới hạn theo f với threshold={threshold}", start_node.state)
         result = _ida_search(
@@ -562,7 +559,6 @@ def IDA_Star(problem):
             threshold,
             problem,
             steps,
-            step_num,
             {state_to_tuple(start_node.state)},
         )
 
@@ -607,7 +603,6 @@ def Simple_Hill_Climbing(problem):
     failure = parity_failure(problem, steps)
     if failure:
         return failure
-    step_num = 1
     path = [current_node]
 
     while True:
@@ -680,7 +675,6 @@ def Stochastic_Hill_Climbing(problem):
     failure = parity_failure(problem, steps)
     if failure:
         return failure
-    step_num = 1
     path = [current_node]
 
     while True:
@@ -740,11 +734,6 @@ def random_node_from(problem, steps_count=20):
     return current
 
 
-def random_state_from(problem, steps_count=20):
-    """Tương thích ngược: trả về trạng thái cuối của một bước đi ngẫu nhiên."""
-    return random_node_from(problem, steps_count).state
-
-
 def Random_Restart_Hill_Climbing(problem, max_restart=30, random_steps=20):
     """
     Random Restart Hill Climbing cho 8-puzzle.
@@ -764,7 +753,6 @@ def Random_Restart_Hill_Climbing(problem, max_restart=30, random_steps=20):
       2. TRẢ VỀ "Không tìm được lời giải"
     """
     all_steps = new_journal()
-    step_num = 0
     if problem.goal_test(problem.initial):
         return [], [problem.initial], [(0, "Start", problem.initial)]
     failure = parity_failure(problem, all_steps)
@@ -845,7 +833,6 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
         return None, None, [(0, "Không chạy: k phải lớn hơn 0", problem.initial)]
 
     all_steps = new_journal()
-    step_num = 0
     if problem.goal_test(problem.initial):
         return [], [problem.initial], [(0, "Start", problem.initial)]
     failure = parity_failure(problem, all_steps)
@@ -873,8 +860,6 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
         "values": beam_values,
         "iteration": 0,
     })
-    step_num += 1
-
     for iteration in range(1, max_iters + 1):
         neighbors = []
 
@@ -951,8 +936,6 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
             "values": beam_values,
             "iteration": iteration,
         })
-        step_num += 1
-
     add_step(all_steps, f"B5. Đạt max_iters={max_iters} → không tìm thấy lời giải", problem.initial)
     return None, None, all_steps
 
@@ -996,7 +979,6 @@ def Simulated_Annealing(problem, T0=500.0, Tmin=0.01, alpha=0.9995, max_steps=10
     current_h = manhattan_distance(current_node.state, problem.goal)
 
     T = T0
-    step_num = 0
     path = [current_node]
 
     # Bước 0: trạng thái ban đầu
@@ -1005,8 +987,6 @@ def Simulated_Annealing(problem, T0=500.0, Tmin=0.01, alpha=0.9995, max_steps=10
     failure = parity_failure(problem, steps)
     if failure:
         return failure
-    step_num += 1
-
     loop_count = 0
 
     while T > Tmin and loop_count < max_steps:
@@ -1081,7 +1061,7 @@ def Simulated_Annealing(problem, T0=500.0, Tmin=0.01, alpha=0.9995, max_steps=10
 #  THUẬT TOÁN AND-OR GRAPH SEARCH
 # ============================================================
 
-def _or_search(state, problem, path, depth_remaining, steps, step_num):
+def _or_search(state, problem, path, depth_remaining, steps):
     """
     Nút OR: chọn một hành động sao cho AND_SEARCH của hành động đó thành công.
     """
@@ -1124,7 +1104,6 @@ def _or_search(state, problem, path, depth_remaining, steps, step_num):
             path | {state_key},
             depth_remaining - 1,
             steps,
-            step_num
         )
 
         if plan is not None:
@@ -1139,7 +1118,7 @@ def _or_search(state, problem, path, depth_remaining, steps, step_num):
     return None
 
 
-def _and_search(states, problem, path, depth_remaining, steps, step_num):
+def _and_search(states, problem, path, depth_remaining, steps):
     """
     Nút AND: tất cả trạng thái kết quả đều phải có kế hoạch thành công.
     """
@@ -1153,7 +1132,6 @@ def _and_search(states, problem, path, depth_remaining, steps, step_num):
             path,
             depth_remaining,
             steps,
-            step_num
         )
 
         if plan_s is None:
@@ -1199,8 +1177,6 @@ def AND_OR_Graph_Search(problem, max_depth=30):
     """
     steps = new_journal()
     add_step(steps, "B1. Gọi OR_SEARCH(initial, path=∅)", problem.initial)
-    step_num = [1]
-
     if problem.goal_test(problem.initial):
         add_step(steps, "B2. Initial đạt goal → trả về kế hoạch rỗng", problem.initial)
         return [], [problem.initial], steps
@@ -1215,7 +1191,6 @@ def AND_OR_Graph_Search(problem, max_depth=30):
         set(),
         max_depth,
         steps,
-        step_num
     )
 
     if plan is None:
@@ -1266,11 +1241,6 @@ class UI:
         self.result_queue = queue.Queue()
         self.running = False
         self.run_token = 0
-        # Cho Local Beam Search: lưu trạng thái nhóm beam
-        self.beam_mode = False
-        # Cho Random Restart và SA: đánh dấu thuật toán đặc biệt
-        self.special_algo = None
-
         self.root.title("8-Puzzle v6 - Mô phỏng giải ô số")
         self.root.geometry("1220x720")
         self.root.configure(bg="#f3f4f6")
@@ -1418,11 +1388,8 @@ class UI:
 
         self.log.tag_configure("header",        foreground="#1f2937")
         self.log.tag_configure("active",        background="#e5e7eb")
-        self.log.tag_configure("restart_header",foreground="#dc2626", font=("Consolas", 10, "bold"))
         self.log.tag_configure("beam_header",   foreground="#2563eb", font=("Consolas", 10, "bold"))
-        self.log.tag_configure("sa_header",     foreground="#7c3aed", font=("Consolas", 10, "bold"))  # SA màu tím
         self.log.tag_configure("sa_accept",     foreground="#16a34a")   # xanh lá – chấp nhận tốt hơn
-        self.log.tag_configure("sa_random",     foreground="#d97706")   # cam – chấp nhận ngẫu nhiên
         self.log.tag_configure("sa_reject",     foreground="#dc2626")   # đỏ – từ chối
         self.log.tag_configure("value_tag",     foreground="#16a34a")
         self.log.bind("<ButtonRelease-1>", lambda e: self.on_click(e))
@@ -1568,10 +1535,6 @@ class UI:
         self.journal_filtered_count = journal_filtered(all_steps)
         self.journal_truncated_count = journal_truncated(all_steps)
         self.current_journal_mode = getattr(all_steps, "mode", self.journal_mode_var.get())
-        self.beam_mode = algo == "Local Beam Search"
-        self.special_algo = algo if algo in {
-            "Local Beam Search", "Random Restart HC", "Simulated Annealing"
-        } else None
         self.log_total_count = len(all_steps)
         visible_steps = all_steps[:self.DISPLAY_LIMIT]
         self.current_log_steps = visible_steps
@@ -1665,180 +1628,6 @@ class UI:
         self._append_truncation_notice(len(steps))
         self.log.config(state="disabled")
 
-    def _prepare_beam_trace(self, all_steps):
-        self.states = []
-        self.step_actions = []
-        self._beam_data = []
-        for _, action_type, data in all_steps:
-            if action_type == "beam_group":
-                self.states.append(data["beams"][0])
-                self.step_actions.append(data["label"])
-                self._beam_data.append(data)
-            else:
-                self.states.append(data if isinstance(data, list) else self.initial)
-                self.step_actions.append(str(action_type))
-                self._beam_data.append(None)
-        if not self.states:
-            self.states = [self.initial]
-            self.step_actions = ["Start"]
-            self._beam_data = [None]
-
-    # ----------------------------------------------------------
-    #  SIMULATED ANNEALING – Runner & Display
-    # ----------------------------------------------------------
-
-    def _run_simulated_annealing(self):
-        """Giữ tương thích với mã cũ; việc chạy thực tế được đưa sang worker."""
-        self.run_algorithm()
-
-    def _display_sa_steps(self, all_steps):
-        """Hiển thị log Simulated Annealing với màu sắc phân biệt từng loại bước."""
-        self.log.config(state="normal")
-        self.log.delete("1.0", tk.END)
-        self.log_ranges = []
-
-        # Header
-        self.log.insert(tk.END, "=" * 55 + "\n", ("sa_header",))
-        self.log.insert(tk.END, "  SIMULATED ANNEALING – Nhật ký từng bước\n", ("sa_header",))
-        self.log.insert(tk.END, "  ✅ Tốt hơn   🎲 Ngẫu nhiên   ❌ Từ chối\n", ("sa_header",))
-        self.log.insert(tk.END, "=" * 55 + "\n\n", ("sa_header",))
-
-        for num, label, state in all_steps:
-            start = self.log.index(tk.END)
-
-            # Chọn màu tag theo loại bước
-            if "Tốt hơn" in label or label.startswith("Start"):
-                tag = "sa_accept"
-            elif "Ngẫu nhiên" in label:
-                tag = "sa_random"
-            elif "Từ chối" in label:
-                tag = "sa_reject"
-            else:
-                tag = "header"
-
-            self.log.insert(tk.END, f"[{num:>5}] {label}\n", (tag,))
-            self.log.insert(tk.END, format_state_table(state) + "\n\n")
-
-            self.log_ranges.append((start, self.log.index(tk.END)))
-
-        # Tóm tắt
-        if self.solved:
-            summary = (f"Tổng duyệt: {self.explored_count} bước → "
-                       f"Lời giải: {self.solution_len} bước")
-            self.summary.config(text=summary, fg="#16a34a")
-        else:
-            summary = f"Tổng duyệt: {self.explored_count} bước → Không tìm thấy lời giải"
-            self.summary.config(text=summary, fg="#dc2626")
-            self.log.insert(tk.END, "\n❌ KHÔNG TÌM THẤY LỜI GIẢI\n", ("sa_reject",))
-        self._append_truncation_notice(len(all_steps))
-
-        self.log.config(state="disabled")
-
-    # ----------------------------------------------------------
-    #  LOCAL BEAM SEARCH – Runner & Display
-    # ----------------------------------------------------------
-
-    def _run_beam_search(self):
-        """Giữ tương thích với mã cũ; việc chạy thực tế được đưa sang worker."""
-        self.run_algorithm()
-
-    def _display_beam_steps(self, all_steps):
-        self.log.config(state="normal")
-        self.log.delete("1.0", tk.END)
-        self.log_ranges = []
-
-        for num, action_type, data in all_steps:
-            if action_type != "beam_group":
-                continue
-
-            start = self.log.index(tk.END)
-
-            label = data["label"]
-            beams = data["beams"]
-            values = data["values"]
-
-            self.log.insert(tk.END, f"{'='*50}\n", ("beam_header",))
-            self.log.insert(tk.END, f"  {label}\n", ("beam_header",))
-            self.log.insert(tk.END, f"{'='*50}\n", ("beam_header",))
-
-            for beam_idx in range(len(beams)):
-                v = values[beam_idx]
-                self.log.insert(tk.END, f"  Beam {beam_idx + 1}", ("header",))
-                self.log.insert(tk.END, f"  (Value = {v})\n", ("value_tag",))
-                for line in format_state_table(beams[beam_idx]).split("\n"):
-                    self.log.insert(tk.END, f"    {line}\n")
-                self.log.insert(tk.END, "\n")
-
-            self.log_ranges.append((start, self.log.index(tk.END)))
-
-        if self.solved:
-            self.summary.config(
-                text=f"Tổng iterations: {self.explored_count} → Lời giải: {self.solution_len} bước",
-                fg="#16a34a",
-            )
-        else:
-            self.summary.config(
-                text=f"Tổng iterations: {self.explored_count} → Không tìm thấy lời giải",
-                fg="#dc2626",
-            )
-            self.log.insert(tk.END, "KHÔNG TÌM THẤY LỜI GIẢI\n", ("header",))
-        self._append_truncation_notice(len(all_steps))
-        self.log.config(state="disabled")
-
-    # ----------------------------------------------------------
-    #  RANDOM RESTART – Runner & Display
-    # ----------------------------------------------------------
-
-    def _run_random_restart(self):
-        """Giữ tương thích với mã cũ; việc chạy thực tế được đưa sang worker."""
-        self.run_algorithm()
-
-    def _display_restart_steps(self, all_steps):
-        self.log.config(state="normal")
-        self.log.delete("1.0", tk.END)
-        self.log_ranges = []
-
-        for num, label, state in all_steps:
-            start = self.log.index(tk.END)
-
-            if "=== Restart" in label:
-                self.log.insert(tk.END, f"\n{'='*50}\n", ("restart_header",))
-                self.log.insert(tk.END, f"  {label}\n", ("restart_header",))
-                self.log.insert(tk.END, f"{'='*50}\n", ("restart_header",))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
-            elif "Kẹt cục bộ" in label:
-                self.log.insert(tk.END, f"[Bước {num}] ❌ {label}\n", ("header",))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
-            elif "Chọn" in label:
-                self.log.insert(tk.END, f"[Bước {num}] ✅ {label}\n", ("header",))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
-            elif "Xét" in label:
-                self.log.insert(tk.END, f"[Bước {num}] {label}\n", ("header",))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
-            else:
-                self.log.insert(tk.END, f"[Bước {num}] {label}\n", ("header",))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
-
-            self.log_ranges.append((start, self.log.index(tk.END)))
-
-        if self.solved:
-            self.summary.config(
-                text=f"Tổng duyệt: {self.explored_count} bước → Lời giải: {self.solution_len} bước",
-                fg="#16a34a",
-            )
-        else:
-            self.summary.config(
-                text=f"Tổng duyệt: {self.explored_count} bước → Không tìm thấy lời giải",
-                fg="#dc2626",
-            )
-            self.log.insert(tk.END, "\nKHÔNG TÌM THẤY LỜI GIẢI\n", ("header",))
-        self._append_truncation_notice(len(all_steps))
-        self.log.config(state="disabled")
-
-    # ----------------------------------------------------------
-    #  HIỂN THỊ BÌNH THƯỜNG
-    # ----------------------------------------------------------
-
     def on_algorithm_change(self, _event):
         self.auto_running = False
         if self.running:
@@ -1863,8 +1652,6 @@ class UI:
         self.journal_filtered_count = 0
         self.journal_truncated_count = 0
         self.current_journal_mode = self.journal_mode_var.get()
-        self.beam_mode = False
-        self.special_algo = None
         self.states = [self.initial]
         self.step_actions = ["Bắt đầu"]
         self.index = 0
@@ -1886,29 +1673,6 @@ class UI:
                 self.cells[i][j].config(text="" if v == 0 else str(v))
         self.step_label.config(text="Bước: 0/0")
         self.action_label.config(text="Trạng thái ban đầu")
-
-    def display_steps(self, steps):
-        self.log.config(state="normal")
-        self.log.delete("1.0", tk.END)
-        self.log_ranges = []
-        for num, action, state in steps:
-            start = self.log.index(tk.END)
-            self.log.insert(tk.END, f"[Bước {num}] {action}\n", ("header",))
-            self.log.insert(tk.END, format_state_table(state) + "\n\n")
-            self.log_ranges.append((start, self.log.index(tk.END)))
-        if self.solved:
-            self.summary.config(
-                text=f"Tổng duyệt: {self.explored_count} bước → Lời giải: {self.solution_len} bước",
-                fg="#16a34a",
-            )
-        else:
-            self.summary.config(
-                text=f"Tổng duyệt: {self.explored_count} bước → Không tìm thấy lời giải",
-                fg="#dc2626",
-            )
-            self.log.insert(tk.END, "KHÔNG TÌM THẤY LỜI GIẢI", ("header",))
-        self._append_truncation_notice(len(steps))
-        self.log.config(state="disabled")
 
     def _append_truncation_notice(self, visible_count):
         if self.journal_filtered_count:
