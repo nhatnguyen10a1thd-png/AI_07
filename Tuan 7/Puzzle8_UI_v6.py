@@ -11,6 +11,67 @@ from tkinter import ttk
 
 
 JOURNAL_LIMIT = 5000
+_journal_context = threading.local()
+
+
+class JournalRecorder(list):
+    """Danh sách nhật ký có lọc, giới hạn và thống kê sự kiện đầy đủ."""
+    SUMMARY_SKIP_MARKERS = (
+        "sinh con bằng",
+        "xét ",
+        "chưa đạt",
+        "đưa nút",
+        "bỏ qua",
+        "and_search. xét kết quả",
+        "and_search. gọi or_search cho một",
+    )
+
+    def __init__(self, mode="Chi tiết", limit=JOURNAL_LIMIT):
+        super().__init__()
+        self.mode = mode
+        self.limit = max(100, int(limit))
+        self.total_count = 0
+        self.filtered_count = 0
+        self.truncated_count = 0
+
+    def _keep_in_summary(self, label):
+        text = str(label).lower()
+        return not any(marker in text for marker in self.SUMMARY_SKIP_MARKERS)
+
+    def record(self, label, state, entry_type=None, data=None):
+        event_num = self.total_count
+        self.total_count += 1
+
+        if self.mode == "Tóm tắt" and not self._keep_in_summary(label):
+            self.filtered_count += 1
+            return
+        if len(self) >= self.limit:
+            self.truncated_count += 1
+            return
+
+        if entry_type == "beam_group":
+            super().append((event_num, entry_type, copy.deepcopy(data)))
+        else:
+            super().append((event_num, label, copy.deepcopy(state)))
+
+
+def new_journal():
+    """Tạo nhật ký theo cấu hình của worker hiện tại."""
+    mode = getattr(_journal_context, "mode", "Chi tiết")
+    limit = getattr(_journal_context, "limit", JOURNAL_LIMIT)
+    return JournalRecorder(mode=mode, limit=limit)
+
+
+def journal_total(steps):
+    return getattr(steps, "total_count", len(steps))
+
+
+def journal_filtered(steps):
+    return getattr(steps, "filtered_count", 0)
+
+
+def journal_truncated(steps):
+    return getattr(steps, "truncated_count", 0)
 
 
 class Node:
@@ -152,14 +213,18 @@ def parity_failure(problem, steps):
 
 def add_step(steps, label, state):
     """Thêm một dòng nhật ký theo đúng thứ tự thực thi mã giả."""
-    if len(steps) < JOURNAL_LIMIT - 1:
+    if isinstance(steps, JournalRecorder):
+        steps.record(label, state)
+    elif len(steps) < JOURNAL_LIMIT:
         steps.append((len(steps), label, copy.deepcopy(state)))
-    elif len(steps) == JOURNAL_LIMIT - 1:
-        steps.append((
-            len(steps),
-            f"Nhật ký đã đạt giới hạn {JOURNAL_LIMIT} bước; thuật toán vẫn tiếp tục chạy",
-            copy.deepcopy(state),
-        ))
+
+
+def add_beam_group(steps, data):
+    """Thêm một mốc Local Beam Search mà vẫn giữ thống kê JournalRecorder."""
+    if isinstance(steps, JournalRecorder):
+        steps.record(data.get("label", "Cập nhật beams"), None, "beam_group", data)
+    elif len(steps) < JOURNAL_LIMIT:
+        steps.append((len(steps), "beam_group", copy.deepcopy(data)))
 
 
 # ============================================================
@@ -170,7 +235,7 @@ def BFS(problem):
     node = Node(problem.initial)
     if problem.goal_test(node.state):
         return [], [node.state], [(0, "B1. Khởi tạo: initial đồng thời là goal → trả về", node.state)]
-    steps = []
+    steps = new_journal()
     add_step(steps, "B1. Khởi tạo frontier = Queue([initial]), explored = ∅", node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -206,7 +271,7 @@ def DFS(problem):
     node = Node(problem.initial)
     if problem.goal_test(node.state):
         return [], [node.state], [(0, "B1. Khởi tạo: initial đồng thời là goal → trả về", node.state)]
-    steps = []
+    steps = new_journal()
     add_step(steps, "B1. Khởi tạo frontier = Stack([initial]), explored = ∅", node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -242,7 +307,7 @@ def UCS(problem):
     node = Node(problem.initial)
     if problem.goal_test(node.state):
         return [], [node.state], [(0, "B1. Khởi tạo: initial đồng thời là goal, g=0 → trả về", node.state)]
-    steps = []
+    steps = new_journal()
     add_step(steps, "B1. Khởi tạo frontier = PriorityQueue(initial, g=0), explored = ∅", node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -307,7 +372,7 @@ def IDS(problem, max_depth):
     start = Node(problem.initial)
     if problem.goal_test(start.state):
         return [], [start.state], [(0, "B1. initial đồng thời là goal → trả về", start.state)]
-    steps = []
+    steps = new_journal()
     add_step(steps, "B1. Khởi tạo giới hạn độ sâu từ 0", start.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -332,7 +397,7 @@ def GBFS(problem):
     """
     start_node = Node(problem.initial)
     h_start = manhattan_distance(start_node.state, problem.goal)
-    steps = []
+    steps = new_journal()
     add_step(steps, f"B1. Khởi tạo frontier = PriorityQueue(initial, h={h_start}), reached = ∅", start_node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -383,7 +448,7 @@ def A_Star(problem):
     h_start = manhattan_distance(start_node.state, problem.goal)
     g_start = 0
     f_start = g_start + h_start
-    steps = []
+    steps = new_journal()
     add_step(steps, f"B1. Khởi tạo frontier với initial: f={f_start} = g={g_start} + h={h_start}", start_node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -482,7 +547,7 @@ def IDA_Star(problem):
     start_node = Node(problem.initial)
     threshold = manhattan_distance(start_node.state, problem.goal)
 
-    steps = []
+    steps = new_journal()
     add_step(steps, f"B1. Khởi tạo threshold = h(initial) = {threshold}", start_node.state)
     failure = parity_failure(problem, steps)
     if failure:
@@ -537,7 +602,7 @@ def Simple_Hill_Climbing(problem):
     current_node = Node(problem.initial)
     current_value = -manhattan_distance(current_node.state, problem.goal)
 
-    steps = []
+    steps = new_journal()
     add_step(steps, f"B1. Gán Current_State = initial; Value(Current)={current_value}", problem.initial)
     failure = parity_failure(problem, steps)
     if failure:
@@ -610,7 +675,7 @@ def Stochastic_Hill_Climbing(problem):
     current_node = Node(problem.initial)
     current_value = -manhattan_distance(current_node.state, problem.goal)
 
-    steps = []
+    steps = new_journal()
     add_step(steps, f"B1. Gán Current_State = initial; Value(Current)={current_value}", problem.initial)
     failure = parity_failure(problem, steps)
     if failure:
@@ -698,7 +763,7 @@ def Random_Restart_Hill_Climbing(problem, max_restart=30, random_steps=20):
             v.   Current_State = Best_Neighbor
       2. TRẢ VỀ "Không tìm được lời giải"
     """
-    all_steps = []
+    all_steps = new_journal()
     step_num = 0
     if problem.goal_test(problem.initial):
         return [], [problem.initial], [(0, "Start", problem.initial)]
@@ -779,7 +844,7 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
     if k <= 0:
         return None, None, [(0, "Không chạy: k phải lớn hơn 0", problem.initial)]
 
-    all_steps = []
+    all_steps = new_journal()
     step_num = 0
     if problem.goal_test(problem.initial):
         return [], [problem.initial], [(0, "Start", problem.initial)]
@@ -802,12 +867,12 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
 
     beam_states = [n.state for n in current_nodes]
     beam_values = [-manhattan_distance(n.state, problem.goal) for n in current_nodes]
-    all_steps.append((len(all_steps), "beam_group", {
+    add_beam_group(all_steps, {
         "label": f"B1. Khởi tạo {len(current_nodes)} beam ngẫu nhiên và tính Value",
         "beams": beam_states,
         "values": beam_values,
         "iteration": 0,
-    }))
+    })
     step_num += 1
 
     for iteration in range(1, max_iters + 1):
@@ -821,12 +886,12 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
             )
             if problem.goal_test(node.state):
                 actions, states = solution(node)
-                all_steps.append((len(all_steps), "beam_group", {
+                add_beam_group(all_steps, {
                     "label": "B3. Beam hiện tại đạt goal → trả về lời giải",
                     "beams": [node.state],
                     "values": [0],
                     "iteration": iteration,
-                }))
+                })
                 return actions, states, all_steps
 
             for action in problem.actions(node.state):
@@ -848,12 +913,12 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
         for child in neighbors:
             if problem.goal_test(child.state):
                 actions, states = solution(child)
-                all_steps.append((len(all_steps), "beam_group", {
+                add_beam_group(all_steps, {
                     "label": "B4. Một lân cận đạt goal → trả về lời giải",
                     "beams": [child.state],
                     "values": [0],
                     "iteration": iteration,
-                }))
+                })
                 return actions, states, all_steps
 
         if not neighbors:
@@ -880,12 +945,12 @@ def Local_Beam_Search(problem, k=3, max_iters=300, random_steps=25):
 
         beam_states = [n.state for n in current_nodes]
         beam_values = [-manhattan_distance(n.state, problem.goal) for n in current_nodes]
-        all_steps.append((len(all_steps), "beam_group", {
+        add_beam_group(all_steps, {
             "label": f"B4. Iteration {iteration}: xếp hạng và giữ {len(current_nodes)} trạng thái tốt nhất",
             "beams": beam_states,
             "values": beam_values,
             "iteration": iteration,
-        }))
+        })
         step_num += 1
 
     add_step(all_steps, f"B5. Đạt max_iters={max_iters} → không tìm thấy lời giải", problem.initial)
@@ -935,7 +1000,8 @@ def Simulated_Annealing(problem, T0=500.0, Tmin=0.01, alpha=0.9995, max_steps=10
     path = [current_node]
 
     # Bước 0: trạng thái ban đầu
-    steps = [(step_num, f"B1. Gán Current_State=initial, h={current_h}; T=T0={T:.2f}", problem.initial)]
+    steps = new_journal()
+    add_step(steps, f"B1. Gán Current_State=initial, h={current_h}; T=T0={T:.2f}", problem.initial)
     failure = parity_failure(problem, steps)
     if failure:
         return failure
@@ -1131,7 +1197,8 @@ def AND_OR_Graph_Search(problem, max_depth=30):
 
     Trả về: (actions, states, steps) tương thích với UI v6.
     """
-    steps = [(0, "B1. Gọi OR_SEARCH(initial, path=∅)", problem.initial)]
+    steps = new_journal()
+    add_step(steps, "B1. Gọi OR_SEARCH(initial, path=∅)", problem.initial)
     step_num = [1]
 
     if problem.goal_test(problem.initial):
@@ -1182,12 +1249,20 @@ class UI:
         self.auto_running = False
         self.log_ranges = []
         self.log_states = []
+        self.current_log_steps = []
+        self.current_log_algo = None
         self.has_run = False
         self.solved = False
         self.solution_len = 0
         self.explored_count = 0
         self.log_total_count = 0
+        self.journal_filtered_count = 0
+        self.journal_truncated_count = 0
+        self.current_journal_mode = "Chi tiết"
         self.speed_var = tk.IntVar(value=650)
+        self.journal_mode_var = tk.StringVar(value="Chi tiết")
+        self.journal_limit_var = tk.StringVar(value=str(JOURNAL_LIMIT))
+        self.show_log_states_var = tk.BooleanVar(value=True)
         self.result_queue = queue.Queue()
         self.running = False
         self.run_token = 0
@@ -1272,6 +1347,28 @@ class UI:
         tk.Label(ctrl, text="α:", bg="white").grid(row=1, column=5, sticky="w")
         self.sa_alpha_var = tk.StringVar(value="0.9995")
         tk.Entry(ctrl, textvariable=self.sa_alpha_var, width=8).grid(row=1, column=6, padx=4)
+
+        tk.Label(ctrl, text="Nhật ký:", bg="white").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ttk.Combobox(
+            ctrl,
+            textvariable=self.journal_mode_var,
+            values=["Chi tiết", "Tóm tắt"],
+            state="readonly",
+            width=12,
+        ).grid(row=2, column=1, sticky="w", padx=8, pady=(6, 0))
+        tk.Label(ctrl, text="Giới hạn lưu:", bg="white").grid(row=2, column=2, sticky="w", pady=(6, 0))
+        tk.Spinbox(
+            ctrl, from_=100, to=20000, increment=100,
+            textvariable=self.journal_limit_var, width=7,
+        ).grid(row=2, column=3, sticky="w", padx=8, pady=(6, 0))
+        tk.Checkbutton(
+            ctrl,
+            text="Hiện bảng trong nhật ký",
+            variable=self.show_log_states_var,
+            command=self._refresh_log_display,
+            bg="white",
+            activebackground="white",
+        ).grid(row=2, column=4, columnspan=3, sticky="w", pady=(6, 0))
 
         self.status = tk.Label(left, text="", font=("Arial", 11, "bold"), bg="white", fg="#1f2937")
         self.status.pack(pady=8)
@@ -1401,12 +1498,18 @@ class UI:
                 raise ValueError
         except ValueError:
             alpha = 0.9995
+        try:
+            journal_limit = max(100, min(20000, int(self.journal_limit_var.get())))
+        except ValueError:
+            journal_limit = JOURNAL_LIMIT
 
         params = {
             "max_depth": max_depth,
             "max_restart": max_restart,
             "t0": t0,
             "alpha": alpha,
+            "journal_mode": self.journal_mode_var.get(),
+            "journal_limit": journal_limit,
         }
         self.running = True
         self.has_run = False
@@ -1422,10 +1525,15 @@ class UI:
 
     def _solve_worker(self, token, algo, params):
         try:
+            _journal_context.mode = params.get("journal_mode", "Chi tiết")
+            _journal_context.limit = params.get("journal_limit", JOURNAL_LIMIT)
             result = self.solve(algo, params)
             self.result_queue.put(("ok", token, algo, result))
         except Exception as exc:
             self.result_queue.put(("error", token, algo, exc))
+        finally:
+            _journal_context.mode = "Chi tiết"
+            _journal_context.limit = JOURNAL_LIMIT
 
     def _poll_results(self):
         try:
@@ -1456,13 +1564,18 @@ class UI:
         self.has_run = True
         self.solved = bool(solution_states and solution_states[-1] == self.goal)
         self.solution_len = len(actions) if actions is not None else 0
-        self.explored_count = len(all_steps)
+        self.explored_count = journal_total(all_steps)
+        self.journal_filtered_count = journal_filtered(all_steps)
+        self.journal_truncated_count = journal_truncated(all_steps)
+        self.current_journal_mode = getattr(all_steps, "mode", self.journal_mode_var.get())
         self.beam_mode = algo == "Local Beam Search"
         self.special_algo = algo if algo in {
             "Local Beam Search", "Random Restart HC", "Simulated Annealing"
         } else None
         self.log_total_count = len(all_steps)
         visible_steps = all_steps[:self.DISPLAY_LIMIT]
+        self.current_log_steps = visible_steps
+        self.current_log_algo = algo
 
         if self.solved:
             self.states = solution_states
@@ -1474,6 +1587,11 @@ class UI:
         self.display_algorithm_log(algo, visible_steps)
         self.index = 0
         self.update()
+
+    def _refresh_log_display(self):
+        if self.has_run and self.current_log_algo and self.current_log_steps:
+            self.display_algorithm_log(self.current_log_algo, self.current_log_steps)
+            self.highlight_log()
 
     def _log_entry_state(self, entry):
         _, entry_type, data = entry
@@ -1497,6 +1615,12 @@ class UI:
 
         self.log.insert(tk.END, "=" * 62 + "\n", ("beam_header",))
         self.log.insert(tk.END, f"  NHẬT KÝ CHẠY TAY MÃ GIẢ: {algo}\n", ("beam_header",))
+        self.log.insert(
+            tk.END,
+            f"  Chế độ: {self.current_journal_mode} | "
+            f"Tổng sự kiện: {self.explored_count} | Đã lưu: {self.log_total_count}\n",
+            ("beam_header",),
+        )
         self.log.insert(tk.END, "=" * 62 + "\n\n", ("beam_header",))
 
         for num, entry_type, data in steps:
@@ -1508,8 +1632,9 @@ class UI:
                 for beam_idx, beam in enumerate(data.get("beams", [])):
                     value = data.get("values", [None] * len(data.get("beams", [])))[beam_idx]
                     self.log.insert(tk.END, f"  Beam {beam_idx + 1} (Value={value})\n", ("value_tag",))
-                    for line in format_state_table(beam).splitlines():
-                        self.log.insert(tk.END, f"    {line}\n")
+                    if self.show_log_states_var.get():
+                        for line in format_state_table(beam).splitlines():
+                            self.log.insert(tk.END, f"    {line}\n")
                     self.log.insert(tk.END, "\n")
             else:
                 label = str(entry_type)
@@ -1519,19 +1644,22 @@ class UI:
                 elif any(word in label.lower() for word in ("bỏ qua", "thất bại", "từ chối", "không tìm thấy", "vô nghiệm")):
                     tag = "sa_reject"
                 self.log.insert(tk.END, f"[Bước {num}] {label}\n", (tag,))
-                self.log.insert(tk.END, format_state_table(state) + "\n\n")
+                if self.show_log_states_var.get():
+                    self.log.insert(tk.END, format_state_table(state) + "\n\n")
+                else:
+                    self.log.insert(tk.END, "\n")
 
             self.log_ranges.append((start, self.log.index(tk.END)))
             self.log_states.append(state)
 
         if self.solved:
             self.summary.config(
-                text=f"Nhật ký: {self.explored_count} bước mã giả → Lời giải: {self.solution_len} nước đi",
+                text=f"Sự kiện: {self.explored_count} | Lưu: {self.log_total_count} → Lời giải: {self.solution_len} nước đi",
                 fg="#16a34a",
             )
         else:
             self.summary.config(
-                text=f"Nhật ký: {self.explored_count} bước mã giả → Không tìm thấy lời giải",
+                text=f"Sự kiện: {self.explored_count} | Lưu: {self.log_total_count} → Không tìm thấy lời giải",
                 fg="#dc2626",
             )
         self._append_truncation_notice(len(steps))
@@ -1732,6 +1860,9 @@ class UI:
         self.solution_len = 0
         self.explored_count = 0
         self.log_total_count = 0
+        self.journal_filtered_count = 0
+        self.journal_truncated_count = 0
+        self.current_journal_mode = self.journal_mode_var.get()
         self.beam_mode = False
         self.special_algo = None
         self.states = [self.initial]
@@ -1746,6 +1877,8 @@ class UI:
         self.log.config(state="disabled")
         self.log_ranges = []
         self.log_states = []
+        self.current_log_steps = []
+        self.current_log_algo = None
         self.summary.config(text="")
         for i in range(3):
             for j in range(3):
@@ -1778,10 +1911,22 @@ class UI:
         self.log.config(state="disabled")
 
     def _append_truncation_notice(self, visible_count):
+        if self.journal_filtered_count:
+            self.log.insert(
+                tk.END,
+                f"\n[Chế độ Tóm tắt đã lọc {self.journal_filtered_count} sự kiện ít quan trọng]\n",
+                ("header",),
+            )
+        if self.journal_truncated_count:
+            self.log.insert(
+                tk.END,
+                f"[Vượt giới hạn lưu: đã bỏ {self.journal_truncated_count} sự kiện]\n",
+                ("sa_reject",),
+            )
         if self.log_total_count > visible_count:
             self.log.insert(
                 tk.END,
-                f"\n[Chỉ hiển thị {visible_count}/{self.log_total_count} mục để giữ giao diện phản hồi]\n",
+                f"[Giao diện chỉ hiển thị {visible_count}/{self.log_total_count} dòng đã lưu]\n",
                 ("header",),
             )
 
