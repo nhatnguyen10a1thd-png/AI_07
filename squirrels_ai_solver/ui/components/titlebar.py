@@ -13,7 +13,8 @@ try:
 except ImportError:
     _HAS_CTYPES = False
 
-TITLEBAR_H = 36  # chiều cao thanh tiêu đề (px)
+TITLEBAR_H = 0  # Không dùng custom titlebar — OS titlebar xử lý bên ngoài pygame
+
 
 # Màu sắc
 _BAR_BG      = (50,  48,  46)

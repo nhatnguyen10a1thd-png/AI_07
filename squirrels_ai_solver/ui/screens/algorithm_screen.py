@@ -73,19 +73,39 @@ class AlgorithmScreen(ScreenBase):
             self.start_visualization, color=(46, 125, 50)
         )
         self.btn_prev = Button(
-            (right_x, bottom_y, 105, 42), "◀ TRƯỚC", font_body,
+            (right_x, bottom_y, 105, 42), "< TRƯỚC", font_body,
             self.prev_step, color=(120, 115, 105)
         )
         self.btn_next = Button(
-            (right_x + 120, bottom_y, 105, 42), "TIẾP ▶", font_body,
+            (right_x + 120, bottom_y, 105, 42), "TIẾP >", font_body,
             self.next_step, color=(79, 110, 138)
         )
         self.btn_play = Button(
-            (right_x + 240, bottom_y, 125, 42), "▶ TỰ CHẠY", font_body,
+            (right_x + 240, bottom_y, 125, 42), "> TỰ CHẠY", font_body,
             self.toggle_play, color=(46, 125, 50)
         )
         self._top     = top
         self._ctrl_y  = ctrl_y
+        self._right_x = right_x
+
+    def update_layout(self):
+        bottom_y  = self.app.height - 62
+        right_x   = int(self.app.width * 0.54)
+        
+        self.btn_menu.rect.y = bottom_y
+        self.btn_levels.rect.y = bottom_y
+        self.btn_reset.rect.y = bottom_y
+        
+        self.algo_dropdown.rect.x = right_x
+        self.btn_start.rect.x = right_x + 270
+        
+        self.btn_prev.rect.x = right_x
+        self.btn_prev.rect.y = bottom_y
+        self.btn_next.rect.x = right_x + 120
+        self.btn_next.rect.y = bottom_y
+        self.btn_play.rect.x = right_x + 240
+        self.btn_play.rect.y = bottom_y
+        
         self._right_x = right_x
 
     # ------------------------------------------------------------------
@@ -150,7 +170,7 @@ class AlgorithmScreen(ScreenBase):
 
     def set_playing(self, is_playing):
         self.is_playing = is_playing
-        self.btn_play.text       = "⏸ DỪNG"  if is_playing else "▶ TỰ CHẠY"
+        self.btn_play.text       = "|| DỪNG"  if is_playing else "> TỰ CHẠY"
         self.btn_play.base_color = (245, 124, 0) if is_playing else (46, 125, 50)
 
     # ------------------------------------------------------------------
@@ -305,7 +325,7 @@ class AlgorithmScreen(ScreenBase):
                 if active:
                     pygame.draw.rect(clip, (220, 239, 224),
                                      (3, y, text_width + 10, self.log_row_h - 1), border_radius=4)
-                prefix = "▶" if active else " "
+                prefix = ">" if active else " "
                 text   = f"{prefix} [{step_num:04d}] {description}"
                 while mono.size(text)[0] > text_width and len(text) > 4:
                     text = text[:-2] + "…"
@@ -314,16 +334,7 @@ class AlgorithmScreen(ScreenBase):
 
         self.log_scrollbar.draw(surface)
 
-        # ── Chú thích bên phải — đặt BÊN DƯỚI log, phía trên nút bottom ─
-        note_y = self.log_area_rect.bottom + 8
-        notes  = [
-            "• Click dòng log → xem trạng thái tương ứng",
-            "• ◀ / ▶ : di chuyển từng bước  |  TỰ CHẠY: tự động",
-            "• ĐẶT LẠI : xóa kết quả, trở về trạng thái ban đầu",
-        ]
-        for i, note in enumerate(notes):
-            ns = body_small.render(note, True, TEXT_MUTED)
-            surface.blit(ns, (right_x, note_y + i * 20))
+
 
         # ── Dropdown + buttons ───────────────────────────────────────────
         self.algo_dropdown.draw(surface)

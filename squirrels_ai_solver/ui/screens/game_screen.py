@@ -110,21 +110,21 @@ class GameScreen(ScreenBase):
         )
         self.btn_ai_prev = Button(
             rect=(rp_x, btn_y, 100, 45),
-            text="◄ TRƯỚC",
+            text="< TRƯỚC",
             font=font_body,
             callback=self.ai_prev_step,
             color=(120, 115, 105)
         )
         self.btn_ai_next = Button(
             rect=(rp_x + 115, btn_y, 100, 45),
-            text="TIẾP ►",
+            text="TIẾP >",
             font=font_body,
             callback=self.ai_next_step,
             color=(79, 110, 138)
         )
         self.btn_ai_play = Button(
             rect=(rp_x + 230, btn_y, 130, 45),
-            text="► TỰ CHẠY",
+            text="> TỰ CHẠY",
             font=font_body,
             callback=self.ai_toggle_play,
             color=(46, 125, 50)
@@ -134,6 +134,27 @@ class GameScreen(ScreenBase):
         self._sub_y      = sub_y
         self._ai_ctrl_y  = ai_ctrl_y
         self._top        = top
+
+    def update_layout(self):
+        W = self.app.width
+        H = self.app.height
+        btn_y  = H - 65
+        rp_x   = int(W * 0.56)
+
+        self.btn_menu.rect.y = btn_y
+        self.btn_levels.rect.y = btn_y
+        self.btn_reset.rect.y = btn_y
+        self.btn_undo.rect.y = btn_y
+        
+        self.algo_dropdown.rect.x = rp_x
+        self.btn_solve.rect.x = rp_x + 275
+        
+        self.btn_ai_prev.rect.x = rp_x
+        self.btn_ai_prev.rect.y = btn_y
+        self.btn_ai_next.rect.x = rp_x + 115
+        self.btn_ai_next.rect.y = btn_y
+        self.btn_ai_play.rect.x = rp_x + 230
+        self.btn_ai_play.rect.y = btn_y
 
     def on_enter(self, **kwargs):
         self.difficulty = kwargs.get("difficulty", "starter")
@@ -265,12 +286,8 @@ class GameScreen(ScreenBase):
 
     def set_ai_playing(self, is_playing):
         self.is_playing_ai = is_playing
-        if is_playing:
-            self.btn_ai_play.text = "TẠM DỪNG"
-            self.btn_ai_play.base_color = (245, 124, 0)
-        else:
-            self.btn_ai_play.text = "TỰ CHẠY"
-            self.btn_ai_play.base_color = (46, 125, 50)
+        self.btn_ai_play.text = "|| DỪNG" if is_playing else "> TỰ CHẠY"
+        self.btn_ai_play.base_color = (245, 124, 0) if is_playing else (46, 125, 50)
 
     def trigger_piece_animation(self, action):
         pid, direction = action
@@ -321,7 +338,7 @@ class GameScreen(ScreenBase):
             H = self.app.height
             board_top = self._top + 72
             board_w   = int(W * 0.52)
-            board_h   = H - board_top - 80
+            board_h   = H - board_top - 74
             bx        = 30
             board_rect = pygame.Rect(bx, board_top, board_w, board_h)
 
@@ -431,11 +448,11 @@ class GameScreen(ScreenBase):
         )
         surface.blit(diff_surf, (30, sub_y))
 
-        # 2. Board (Left Side) — bắt đầu từ dưới header
+        # 2. Board (Left Side) — bắt đầu từ dưới header, lấp đầy chiều cao
         W = self.app.width
         H = self.app.height
         board_top  = top + 72
-        board_h    = H - board_top - 80
+        board_h    = H - board_top - 74  # 74px = khoảng cách trên nút bottom
         bx         = 30
         board_w    = int(W * 0.52)
         board_rect = pygame.Rect(bx, board_top, board_w, board_h)
@@ -452,17 +469,6 @@ class GameScreen(ScreenBase):
             legal_moves=legal_acts,
             animations=self.active_animation,
         )
-
-        # Trạng thái bên dưới bảng
-        status_y = board_top + board_h + 5
-        if self.selected_piece_id:
-            lbl = body_bold.render(
-                f"Đang chọn: Sóc {self.selected_piece_id.upper()} — Dùng phím Mũi Tên để di chuyển.",
-                True, (46, 125, 50),
-            )
-        else:
-            lbl = body_font.render("Click chọn một chú Sóc để di chuyển.", True, TEXT_MUTED)
-        surface.blit(lbl, (bx + 10, status_y))
 
         # 3. Side Panel (Right Side)
         rp_x = bx + board_w + 20
@@ -491,6 +497,8 @@ class GameScreen(ScreenBase):
                 color = (46, 125, 50) if idx == 0 else TEXT_COLOR
                 surface.blit(body_font.render(line, True, color), (rp_x, instr_y + idx * 34))
 
+
+
         elif self.mode == "ai":
             lbl_title = title_font.render("AI SOLVER PANEL", True, TEXT_COLOR)
             surface.blit(lbl_title, (rp_x, panel_title_y))
@@ -503,7 +511,7 @@ class GameScreen(ScreenBase):
 
             if self.ai_result:
                 stats_lines = [
-                    f"Trạng thái giải: {'Thành công ✅' if self.ai_result.solved else 'Thất bại ❌'}",
+                    f"Trạng thái giải: {'Thành công' if self.ai_result.solved else 'Thất bại'}",
                     f"Số bước giải: {len(self.ai_path)}  (Bước hiện tại: {self.ai_step_idx})",
                     f"Nút đã duyệt  (Visited):   {self.ai_result.visited_count:,}",
                     f"Nút đã sinh   (Generated): {self.ai_result.generated_count:,}",
@@ -513,6 +521,8 @@ class GameScreen(ScreenBase):
                     surface.blit(body_font.render(line, True, TEXT_COLOR), (rp_x, stats_y + 14 + idx * 30))
             else:
                 surface.blit(body_font.render("Chưa có kết quả tìm kiếm thuật toán.", True, TEXT_MUTED), (rp_x, stats_y + 18))
+
+
 
             path_y = stats_y + 178
             pygame.draw.line(surface, BORDER_COLOR, (rp_x - 5, path_y), (W - 25, path_y), width=1)
