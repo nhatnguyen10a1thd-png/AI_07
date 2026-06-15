@@ -20,7 +20,6 @@ class Problem:
     def __init__(self, initial, goal):
         self.initial = initial
         self.goal = goal
-
     def find_zero(self, board):
         for i in range(3):
             for j in range(3):
