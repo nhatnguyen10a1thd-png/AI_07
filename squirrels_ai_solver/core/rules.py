@@ -1,6 +1,5 @@
 # core/rules.py
 from core.constants import BOARD_SIZE, DIRECTIONS
-from core.state import GameState
 
 class BoardRules:
     """Handles rules of the game: generating legal moves, checking collision, and applying state transitions."""

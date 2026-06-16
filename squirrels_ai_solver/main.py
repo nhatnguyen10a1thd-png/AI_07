@@ -5,7 +5,7 @@ import pygame
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from core.constants import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, BG_COLOR
+from core.constants import FPS, BG_COLOR
 from core.level import LevelManager
 from ui.screen_manager import ScreenManager
 from ui.screens.main_menu import MainMenuScreen

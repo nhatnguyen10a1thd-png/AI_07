@@ -8,10 +8,8 @@ class LevelManager:
     """Manages loading and validating levels from JSON configuration."""
     def __init__(self, file_path=None):
         if file_path is None:
-            # Default to data/levels.json in the current project directory
             current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            book_levels = os.path.join(current_dir, "data", "book_levels.json")
-            file_path = book_levels if os.path.exists(book_levels) else os.path.join(current_dir, "data", "levels.json")
+            file_path = os.path.join(current_dir, "data", "book_levels.json")
         
         self.file_path = file_path
         self.levels_data = {}

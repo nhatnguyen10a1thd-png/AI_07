@@ -7,7 +7,7 @@ from ui.components.dropdown import Dropdown
 from ui.components.toast import Toast
 from ui.components.modal import Modal
 from ui.components.titlebar import TITLEBAR_H
-from ui.renderers.board_renderer import draw_board, get_cell_size, get_cell_pos
+from ui.renderers.board_renderer import draw_board, get_cell_size
 from core.rules import BoardRules
 from core.constants import BG_COLOR, PANEL_COLOR, TEXT_COLOR, TEXT_MUTED, BORDER_COLOR
 from ai.solver_interface import ALGORITHMS, solve

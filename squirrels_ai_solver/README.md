@@ -14,10 +14,12 @@ Dự án được xây dựng hoàn toàn bằng **Python** và sử dụng thư
    - Ứng dụng tích hợp nhiều thuật toán tìm kiếm kinh điển và hiện đại:
      - **A*** (A-Star Search - Thuật toán tìm kiếm tối ưu bằng Heuristic)
      - **BFS** (Breadth-First Search - Tìm kiếm theo chiều rộng)
-     - **DFS** (Depth-First Search - Tìm kiếm theo chiều sâu)
-     - **Greedy** (Greedy Best-First Search - Tìm kiếm tham lam)
-     - **UCS** (Uniform Cost Search - Tìm kiếm chi phí cực tiểu)
      - **IDS** (Iterative Deepening Search - Tìm kiếm sâu dần)
+     - **Greedy** (Greedy Best-First Search - Tìm kiếm tham lam)
+     - **Hill Climbing** và **Simulated Annealing** (Local Search)
+     - **Minimax** và **Alpha-Beta** (Adversarial Search)
+     - **Backtracking** và **Min-Conflicts** (CSP)
+     - **AND-OR Search** và **Belief-State Search** (Complex Search)
    - Người dùng có thể xem được chi tiết từng bước mà thuật toán đã duyệt qua (Log duyệt) và nhấn `TỰ CHẠY` để AI thực hiện các bước giải trực quan trên màn hình.
 
 3. **Báo Cáo Hiệu Năng (Performance Report):**
@@ -64,8 +66,8 @@ Dự án được xây dựng hoàn toàn bằng **Python** và sử dụng thư
 
 Để dễ dàng nắm bắt mã nguồn, dự án được chia thành các thành phần cụ thể:
 - `main.py`: Điểm bắt đầu của ứng dụng, chứa vòng lặp trò chơi (game loop) và thiết lập môi trường.
-- `core/`: Chứa các quy tắc vật lý cơ bản (`rules.py`), quản lý level (`level.py`) và các mô hình dữ liệu (`board.py`, `piece.py`).
-- `ai/`: Trung tâm não bộ của trò chơi, bao gồm mã nguồn cho các thuật toán (`algorithms.py`), đánh giá Heuristic, theo dõi hiệu năng hệ thống (`search_result.py`).
+- `core/`: Chứa các quy tắc vật lý cơ bản (`rules.py`), quản lý level (`level.py`) và các mô hình dữ liệu (`state.py`, `piece.py`).
+- `ai/`: Trung tâm não bộ của trò chơi, bao gồm mã nguồn cho các nhóm thuật toán, đánh giá heuristic (`informed/heuristics.py`) và theo dõi kết quả tìm kiếm (`search_result.py`).
 - `ui/`: Toàn bộ mã nguồn liên quan đến hình ảnh và giao diện người dùng. Được chia nhỏ thành:
   - `screens/`: Quản lý các chế độ màn hình (Menu, Game, Report, v.v.).
   - `components/`: Các thành phần tái sử dụng (Nút bấm, Danh sách, Modal, Thanh cuộn, Toast thông báo).

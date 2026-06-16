@@ -1,6 +1,6 @@
 # ui/components/modal.py
 import pygame
-from core.constants import BG_COLOR, TEXT_COLOR, PANEL_COLOR, BORDER_COLOR
+from core.constants import TEXT_COLOR, PANEL_COLOR, BORDER_COLOR
 from ui.components.button import Button
 
 
@@ -123,7 +123,3 @@ class Modal:
         # Buttons
         for btn in self.buttons:
             btn.draw(surface)
-
-
-class Theme:
-    pass
