@@ -44,9 +44,9 @@ def run_tests():
         next_state = rules.apply_action(state, test_act)
         print(f"Applied action {test_act}. New anchor of {test_act[0]}: {next_state.pieces[test_act[0]].anchor}")
     
-    # 5. Run all 12 algorithms and print search results
+    # 5. Run every registered algorithm and print search results
     print("\n==================================================")
-    print("RUNNING ALL 12 ALGORITHMS ON STARTER 01")
+    print(f"RUNNING ALL {len(ALGORITHMS)} REGISTERED ALGORITHMS ON STARTER 01")
     print("==================================================")
     
     for algo_name in ALGORITHMS.keys():

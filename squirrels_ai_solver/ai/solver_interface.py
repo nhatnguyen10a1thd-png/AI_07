@@ -11,7 +11,8 @@ from ai.csp.backtracking import backtracking_solve
 from ai.csp.min_conflicts import min_conflicts_solve
 from ai.adversarial.minimax import minimax_solve
 from ai.adversarial.alpha_beta import alphabeta_solve
-from ai.planning.forward_planning import forward_planning_solve
+from ai.complex.and_or_search import and_or_solve
+from ai.complex.belief_state_search import belief_state_solve
 
 # Danh sách thuật toán theo bảng yêu cầu:
 # 1. Tìm kiếm mù      → BFS, IDS
@@ -19,7 +20,7 @@ from ai.planning.forward_planning import forward_planning_solve
 # 3. Local Search      → Hill Climbing, Simulated Annealing
 # 4. Adversarial       → Minimax, Alpha-Beta
 # 5. CSP               → Backtracking, Min-Conflicts
-# 6. Planning          → Forward Planning
+# 6. Complex           -> AND-OR Search, Belief-State
 ALGORITHMS = {
     "BFS":                 bfs_solve,
     "IDS":                 ids_solve,
@@ -31,7 +32,8 @@ ALGORITHMS = {
     "Alpha-Beta":          alphabeta_solve,
     "Backtracking":        backtracking_solve,
     "Min-Conflicts":       min_conflicts_solve,
-    "Forward Planning":    forward_planning_solve,
+    "AND-OR Search":       and_or_solve,
+    "Belief-State":        belief_state_solve,
 }
 
 

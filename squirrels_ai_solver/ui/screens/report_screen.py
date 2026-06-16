@@ -209,7 +209,12 @@ class ReportScreen(ScreenBase):
             bar_w  = max(20, spacing - 14)
             pygame.draw.rect(surface, color,
                              (x, bar_bottom - bar_h, bar_w, bar_h), border_radius=5)
-            label = name.replace("Simulated ", "Sim. ").replace("Forward ", "Fwd. ").replace("Backtracking", "BT")
+            label = (
+                name.replace("Simulated ", "Sim. ")
+                .replace("Backtracking", "BT")
+                .replace("AND-OR Search", "AND-OR")
+                .replace("Belief-State", "Belief")
+            )
             text = body_small.render(label, True, TEXT_COLOR)
             surface.blit(text, text.get_rect(centerx=x + bar_w // 2, y=bar_bottom + 4))
 
@@ -218,4 +223,3 @@ class ReportScreen(ScreenBase):
         self.btn_run_all.draw(surface)
         self.btn_export.draw(surface)
         self.toast.draw(surface)
-

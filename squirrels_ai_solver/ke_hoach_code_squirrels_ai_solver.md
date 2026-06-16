@@ -1577,7 +1577,7 @@ Cách xử lý:
 
 Cách xử lý:
 
-- Dùng CSP như depth-bounded planning.
+- Dùng CSP như tìm kiếm chuỗi hành động có giới hạn độ sâu.
 - Với mỗi độ sâu k, thử tìm chuỗi action hợp lệ.
 - Nếu không ra thì tăng k.
 
