@@ -1,4 +1,4 @@
-# 8 Puzzle - Forward Checking Search
+# 8 Puzzle - Backtracking CSP + Forward Checking Search
 # 0 là ô trống
 
 START = (1, 2, 3,
@@ -52,90 +52,197 @@ def move(state, action):
     return tuple(new_state)
 
 
-def get_legal_actions(state, visited):
-    legal = []
+def neighbors(state):
+    result = []
 
     for action in ACTIONS:
         next_state = move(state, action)
 
-        if next_state is not None and next_state not in visited:
-            legal.append(action)
+        if next_state is not None:
+            result.append(next_state)
 
-    return legal
+    return result
 
 
-def forward_checking(state, visited):
-    """
-    Kiểm tra trước miền giá trị của bước tiếp theo.
-    Nếu không còn hành động hợp lệ thì xem như thất bại.
-    """
-    next_domain = get_legal_actions(state, visited)
+def action_between(state, next_state):
+    for action in ACTIONS:
+        if move(state, action) == next_state:
+            return action
 
-    if len(next_domain) == 0:
-        return None
+    return None
 
-    return next_domain
+
+def manhattan(state, goal):
+    goal_pos = {}
+
+    for i, tile in enumerate(goal):
+        goal_pos[tile] = divmod(i, 3)
+
+    total = 0
+
+    for i, tile in enumerate(state):
+        if tile == 0:
+            continue
+
+        r1, c1 = divmod(i, 3)
+        r2, c2 = goal_pos[tile]
+        total += abs(r1 - r2) + abs(c1 - c2)
+
+    return total
 
 
 def is_solvable(start, goal):
-    def inversions(state):
-        arr = [x for x in state if x != 0]
-        count = 0
+    goal_order = {}
+    index = 0
 
-        for i in range(len(arr)):
-            for j in range(i + 1, len(arr)):
-                if arr[i] > arr[j]:
-                    count += 1
+    for tile in goal:
+        if tile != 0:
+            goal_order[tile] = index
+            index += 1
 
-        return count
+    arr = []
 
-    return inversions(start) % 2 == inversions(goal) % 2
+    for tile in start:
+        if tile != 0:
+            arr.append(goal_order[tile])
+
+    inv = 0
+
+    for i in range(len(arr)):
+        for j in range(i + 1, len(arr)):
+            if arr[i] > arr[j]:
+                inv += 1
+
+    return inv % 2 == 0
 
 
-def forward_check(assignment, state, goal, visited, depth_limit):
-    # assignment complete: đã tới trạng thái đích
-    if state == goal:
-        return assignment.copy()
+def build_exact_layers(start, max_depth):
+    """
+    layers[i] = tập trạng thái có thể đạt được từ start sau đúng i bước.
+    Không dùng global visited để giữ đúng mô hình CSP theo từng độ sâu.
+    """
+    layers = []
+    current = {start}
+    layers.append(current)
 
-    # hết độ sâu thì thất bại
-    if len(assignment) >= depth_limit:
+    for _ in range(max_depth):
+        next_layer = set()
+
+        for state in current:
+            for next_state in neighbors(state):
+                next_layer.add(next_state)
+
+        layers.append(next_layer)
+        current = next_layer
+
+    return layers
+
+
+def build_domains(start, goal, depth, start_layers, goal_layers):
+    """
+    D(S0) = {start}
+    D(Sd) = {goal}
+    D(Si) = states đi được từ start sau i bước
+            giao với states có thể đi về goal trong depth - i bước.
+    """
+    domains = {}
+
+    for i in range(depth + 1):
+        if i == 0 and i == depth:
+            domains[i] = {start} if start == goal else set()
+        elif i == 0:
+            domains[i] = {start}
+        elif i == depth:
+            domains[i] = {goal}
+        else:
+            domains[i] = start_layers[i] & goal_layers[depth - i]
+
+    return domains
+
+
+def select_unassigned_variable(assignment, depth):
+    for i in range(depth + 1):
+        if i not in assignment:
+            return i
+
+    return None
+
+
+def order_domain_values(var, domains, goal):
+    return sorted(domains[var], key=lambda state: (manhattan(state, goal), state))
+
+
+def is_consistent(var, value, assignment):
+    # Không lặp trạng thái trên đường đi.
+    if value in assignment.values():
+        return False
+
+    # Ràng buộc Adjacent(Si-1, Si).
+    if var - 1 in assignment:
+        previous_state = assignment[var - 1]
+
+        if value not in neighbors(previous_state):
+            return False
+
+    # Ràng buộc Adjacent(Si, Si+1), nếu biến sau đã được gán.
+    if var + 1 in assignment:
+        next_state = assignment[var + 1]
+
+        if next_state not in neighbors(value):
+            return False
+
+    return True
+
+
+def forward_check_domains(var, assignment, domains, depth):
+    """
+    Forward Checking: sau khi gán Svar, lọc trước miền của S(var+1).
+    Nếu S(var+1) không còn giá trị hợp lệ thì cắt nhánh sớm.
+    """
+    next_var = var + 1
+
+    if next_var > depth or next_var in assignment:
+        return domains
+
+    filtered_domain = {
+        value
+        for value in domains[next_var]
+        if is_consistent(next_var, value, assignment)
+    }
+
+    if len(filtered_domain) == 0:
         return None
 
-    # SELECT-UNASSIGNED-VARIABLE:
-    # ở đây biến tiếp theo chính là bước di chuyển tiếp theo
-    domain = get_legal_actions(state, visited)
+    new_domains = domains.copy()
+    new_domains[next_var] = filtered_domain
 
-    # ORDER-DOMAIN-VALUES
-    for action in domain:
-        next_state = move(state, action)
+    return new_domains
 
-        # consistent with assignment
-        if next_state is not None and next_state not in visited:
-            assignment.append((action, next_state))
-            visited.add(next_state)
 
-            # FORWARD-CHECKING
-            # Nếu chưa tới goal thì kiểm tra bước sau còn nước đi không
-            if next_state == goal:
-                return assignment.copy()
+def recursive_forward_check(assignment, domains, depth, goal):
+    if len(assignment) == depth + 1:
+        return assignment.copy()
 
-            removed = forward_checking(next_state, visited)
+    var = select_unassigned_variable(assignment, depth)
 
-            if removed is not None:
-                result = forward_check(
+    for value in order_domain_values(var, domains, goal):
+        if is_consistent(var, value, assignment):
+            assignment[var] = value
+
+            checked_domains = forward_check_domains(var, assignment, domains, depth)
+
+            if checked_domains is not None:
+                result = recursive_forward_check(
                     assignment,
-                    next_state,
-                    goal,
-                    visited,
-                    depth_limit
+                    checked_domains,
+                    depth,
+                    goal
                 )
 
                 if result is not None:
                     return result
 
-            # restore removed values + remove {var = value}
-            visited.remove(next_state)
-            assignment.pop()
+            del assignment[var]
 
     return None
 
@@ -147,21 +254,37 @@ def forward_checking_search(start, goal, max_depth=40):
     if not is_solvable(start, goal):
         return None
 
-    # Tăng dần độ sâu để tìm lời giải ngắn hơn
-    for depth_limit in range(max_depth + 1):
-        assignment = []
-        visited = {start}
+    max_depth = max(0, max_depth)
+    start_layers = build_exact_layers(start, max_depth)
+    goal_layers = build_exact_layers(goal, max_depth)
 
-        result = forward_check(
-            assignment,
-            start,
-            goal,
-            visited,
-            depth_limit
-        )
+    # Tăng dần độ sâu: mỗi depth tạo một CSP S0, S1, ..., Sd.
+    for depth in range(1, max_depth + 1):
+        domains = build_domains(start, goal, depth, start_layers, goal_layers)
+
+        if any(len(domains[i]) == 0 for i in range(depth + 1)):
+            continue
+
+        assignment = {
+            0: start
+        }
+
+        result = recursive_forward_check(assignment, domains, depth, goal)
 
         if result is not None:
-            return result
+            path = []
+
+            for i in range(depth + 1):
+                path.append(result[i])
+
+            if path[-1] == goal:
+                solution = []
+
+                for i in range(1, len(path)):
+                    action = action_between(path[i - 1], path[i])
+                    solution.append((action, path[i]))
+
+                return solution
 
     return None
 

@@ -1206,137 +1206,203 @@ def AND_OR_Graph_Search(problem, max_depth=30):
 #  THUẬT TOÁN BACKTRACKING SEARCH
 # ============================================================
 
-def _recursive_backtracking(state, problem, depth_limit, current_depth,
-                            path, visited, steps, action_name=None):
-    """
-    Hàm đệ quy cốt lõi của Backtracking Search.
+def _bt_csp_state_from_key(state_key):
+    return [list(row) for row in state_key]
 
-    Mã giả tương ứng:
-    -----------------
-    function RECURSIVE_BACKTRACKING(state, assignment):
-        if state == goal: return assignment
-        if depth >= limit: return failure
-        for each action in ORDER_DOMAIN_VALUES(state):
-            next_state = RESULT(state, action)
-            if next_state is CONSISTENT (chưa visited):
-                add next_state to assignment
-                result = RECURSIVE_BACKTRACKING(next_state, assignment)
-                if result ≠ failure: return result
-                remove next_state from assignment   ← QUAY LUI
-        return failure
-    """
-    state_key = state_to_tuple(state)
 
-    # Kiểm tra goal
-    if problem.goal_test(state):
-        add_step(steps,
-                 f"BT. depth={current_depth}: Đạt goal → trả về lời giải",
-                 state)
-        return True
-
-    # Kiểm tra giới hạn độ sâu
-    if current_depth >= depth_limit:
-        add_step(steps,
-                 f"BT. depth={current_depth} ≥ limit={depth_limit} → quay lui",
-                 state)
-        return False
-
-    add_step(steps,
-             f"BT. depth={current_depth}: Mở rộng, thử lần lượt các hành động",
-             state)
-
-    # Thử từng hành động (Order-Domain-Values)
+def _bt_csp_neighbors(state_key, problem):
+    state = _bt_csp_state_from_key(state_key)
+    result = []
     for action in problem.actions(state):
         next_state = problem.result(state, action)
-        next_key = state_to_tuple(next_state)
+        if next_state is not None:
+            result.append(state_to_tuple(next_state))
+    return result
 
-        # Kiểm tra tính nhất quán (consistent): chưa visited
-        if next_key in visited:
-            add_step(steps,
-                     f"BT. depth={current_depth}: Thử {action} → đã visited → bỏ qua",
-                     next_state)
+
+def _bt_csp_action_between(state, next_state, problem):
+    for action in problem.actions(state):
+        if problem.result(state, action) == next_state:
+            return action
+    return None
+
+
+def _bt_csp_build_exact_layers(start_key, problem, max_depth):
+    """
+    layers[i] = tập trạng thái có thể xuất hiện sau đúng i bước.
+    Không dùng global visited để giữ đúng mô hình CSP của file back_tracking.py.
+    """
+    layers = []
+    current = {start_key}
+    layers.append(current)
+
+    for _ in range(max(0, max_depth)):
+        next_layer = set()
+        for state_key in current:
+            next_layer.update(_bt_csp_neighbors(state_key, problem))
+        layers.append(next_layer)
+        current = next_layer
+
+    return layers
+
+
+def _bt_csp_build_domains(start_key, goal_key, depth, start_layers, goal_layers):
+    domains = {}
+
+    for i in range(depth + 1):
+        if i == 0 and i == depth:
+            domains[i] = {start_key} if start_key == goal_key else set()
+        elif i == 0:
+            domains[i] = {start_key}
+        elif i == depth:
+            domains[i] = {goal_key}
+        else:
+            domains[i] = start_layers[i] & goal_layers[depth - i]
+
+    return domains
+
+
+def _bt_csp_select_unassigned_variable(assignment, depth):
+    for i in range(depth + 1):
+        if i not in assignment:
+            return i
+    return None
+
+
+def _bt_csp_order_domain_values(var, domains, problem):
+    return sorted(
+        domains[var],
+        key=lambda state_key: (
+            manhattan_distance(_bt_csp_state_from_key(state_key), problem.goal),
+            state_key,
+        ),
+    )
+
+
+def _bt_csp_is_consistent(var, value, assignment, problem):
+    if value in assignment.values():
+        return False
+
+    if var - 1 in assignment:
+        previous_state = assignment[var - 1]
+        if value not in _bt_csp_neighbors(previous_state, problem):
+            return False
+
+    if var + 1 in assignment:
+        next_state = assignment[var + 1]
+        if next_state not in _bt_csp_neighbors(value, problem):
+            return False
+
+    return True
+
+
+def _recursive_backtracking(assignment, domains, depth, problem, steps):
+    """
+    Backtracking CSP chuẩn hóa theo UI_v7.
+
+    assignment[i] là trạng thái được gán cho biến S_i. Trạng thái lưu bằng
+    tuple để đưa vào set/dict, còn khi ghi log hoặc trả kết quả thì đổi về
+    board list 3x3 đúng chuẩn UI.
+    """
+    if len(assignment) == depth + 1:
+        final_state = _bt_csp_state_from_key(assignment[depth])
+        add_step(steps,
+                 f"BT-CSP. Đã gán đủ S0..S{depth} → kiểm tra nghiệm",
+                 final_state)
+        return assignment.copy()
+
+    var = _bt_csp_select_unassigned_variable(assignment, depth)
+    values = _bt_csp_order_domain_values(var, domains, problem)
+    current_state = _bt_csp_state_from_key(assignment.get(var - 1, assignment[0]))
+    add_step(steps,
+             f"BT-CSP. Chọn biến S{var}; miền có {len(values)} trạng thái",
+             current_state)
+
+    for value in values:
+        candidate_state = _bt_csp_state_from_key(value)
+        if not _bt_csp_is_consistent(var, value, assignment, problem):
             continue
 
-        # Gán (thêm vào assignment)
+        assignment[var] = value
         add_step(steps,
-                 f"BT. depth={current_depth}: Thử {action} → chưa visited → đi sâu",
-                 next_state)
-        visited.add(next_key)
-        path.append((action, next_state))
+                 f"BT-CSP. Gán S{var} hợp lệ → đi tiếp",
+                 candidate_state)
 
-        # Gọi đệ quy
-        result = _recursive_backtracking(
-            next_state, problem, depth_limit, current_depth + 1,
-            path, visited, steps, action
-        )
+        result = _recursive_backtracking(assignment, domains, depth, problem, steps)
+        if result is not None:
+            return result
 
-        if result:
-            return True
-
-        # QUAY LUI: xóa khỏi assignment
-        path.pop()
-        visited.remove(next_key)
+        del assignment[var]
         add_step(steps,
-                 f"BT. depth={current_depth}: Nhánh {action} thất bại → QUAY LUI, xóa khỏi visited",
-                 state)
+                 f"BT-CSP. Quay lui khỏi S{var}",
+                 candidate_state)
 
     add_step(steps,
-             f"BT. depth={current_depth}: Mọi hành động đều thất bại → trả về failure",
-             state)
-    return False
+             f"BT-CSP. Không còn giá trị hợp lệ cho S{var} → failure",
+             current_state)
+    return None
 
 
 def Backtracking_Search(problem, max_depth=40):
     """
-    Backtracking Search với Iterative Deepening cho 8-puzzle.
+    Backtracking CSP của file back_tracking.py, chuẩn hóa theo UI_v7.
 
-    Mã giả:
-    -------
-    function BACKTRACKING_SEARCH(problem, max_depth):
-      1. NẾU initial == goal: trả về []
-      2. Kiểm tra solvable (parity)
-      3. LẶP depth_limit = 0, 1, ..., max_depth:
-         a. visited = {initial}
-         b. path = []
-         c. result = RECURSIVE_BACKTRACKING(initial, goal, depth_limit, path, visited)
-         d. NẾU result ≠ failure: trả về path
-      4. Trả về failure
+    Biến CSP: S0, S1, ..., Sd.
+    Miền: D(Si) = trạng thái đi được từ initial sau i bước giao với trạng thái
+    có thể đi về goal trong d - i bước.
+    Ràng buộc: S0 = initial, Sd = goal, Adjacent(Si, Si+1), không lặp trạng thái.
     """
     start_node = Node(problem.initial)
     if problem.goal_test(start_node.state):
         return [], [start_node.state], [(0, "B1. initial đồng thời là goal → trả về", start_node.state)]
 
     steps = new_journal()
-    add_step(steps, "B1. Khởi tạo: kiểm tra parity và bắt đầu Iterative Deepening Backtracking",
+    add_step(steps, "B1. Khởi tạo Backtracking CSP: kiểm tra parity và tạo miền theo độ sâu",
              problem.initial)
     failure = parity_failure(problem, steps)
     if failure:
         return failure
 
-    for depth_limit in range(max(0, max_depth) + 1):
+    max_depth = max(0, max_depth)
+    start_key = state_to_tuple(problem.initial)
+    goal_key = state_to_tuple(problem.goal)
+    start_layers = _bt_csp_build_exact_layers(start_key, problem, max_depth)
+    goal_layers = _bt_csp_build_exact_layers(goal_key, problem, max_depth)
+    add_step(steps,
+             f"B2. Đã tạo exact layers từ initial và goal tới max_depth={max_depth}",
+             problem.initial)
+
+    for depth in range(1, max_depth + 1):
+        domains = _bt_csp_build_domains(start_key, goal_key, depth, start_layers, goal_layers)
+        empty_vars = [i for i in range(depth + 1) if len(domains[i]) == 0]
+
         add_step(steps,
-                 f"B2. Bắt đầu Backtracking với depth_limit={depth_limit}",
+                 f"B3. Thử CSP với depth={depth}; biến S0..S{depth}",
                  problem.initial)
 
-        visited = {state_to_tuple(problem.initial)}
-        path = []
-
-        found = _recursive_backtracking(
-            problem.initial, problem, depth_limit, 0,
-            path, visited, steps
-        )
-
-        if found:
+        if empty_vars:
             add_step(steps,
-                     f"B3. Backtracking depth_limit={depth_limit} tìm thấy goal → trả về lời giải",
-                     path[-1][1] if path else problem.initial)
-            # Xây dựng danh sách actions và states từ path
-            actions_list = [a for a, _ in path]
-            states_list = [problem.initial] + [s for _, s in path]
-            return actions_list, states_list, steps
+                     f"B4. CSP depth={depth} có miền rỗng tại {empty_vars} → tăng độ sâu",
+                     problem.initial)
+            continue
+
+        assignment = {0: start_key}
+        result = _recursive_backtracking(assignment, domains, depth, problem, steps)
+
+        if result is not None:
+            states_list = [_bt_csp_state_from_key(result[i]) for i in range(depth + 1)]
+            if states_list[-1] == problem.goal:
+                actions_list = [
+                    _bt_csp_action_between(states_list[i - 1], states_list[i], problem)
+                    for i in range(1, len(states_list))
+                ]
+                add_step(steps,
+                         f"B4. Backtracking CSP depth={depth} tìm thấy goal → trả về lời giải",
+                         states_list[-1])
+                return actions_list, states_list, steps
 
         add_step(steps,
-                 f"B3. Backtracking depth_limit={depth_limit} không tìm thấy → tăng giới hạn",
+                 f"B4. Backtracking CSP depth={depth} không tìm thấy → tăng độ sâu",
                  problem.initial)
 
     add_step(steps,
@@ -1350,189 +1416,166 @@ def Backtracking_Search(problem, max_depth=40):
 # ============================================================
 
 def _fc_get_domain(state, problem, visited):
-    """
-    Trả về danh sách hành động hợp lệ (miền giá trị) của trạng thái,
-    loại bỏ những hành động dẫn đến trạng thái đã visited.
-    """
-    domain = []
-    for action in problem.actions(state):
-        next_state = problem.result(state, action)
-        if state_to_tuple(next_state) not in visited:
-            domain.append(action)
-    return domain
+    """Giữ lại để tương thích tên cũ; Forward Checking mới dùng miền CSP."""
+    visited_keys = set(visited)
+    state_key = state_to_tuple(state)
+    return [
+        _bt_csp_state_from_key(next_key)
+        for next_key in _bt_csp_neighbors(state_key, problem)
+        if next_key not in visited_keys
+    ]
 
 
-def _fc_forward_check(state, problem, visited):
+def _fc_forward_check_domains(var, assignment, domains, depth, problem, steps):
     """
-    Forward Checking: kiểm tra trước miền giá trị của bước tiếp theo.
-    Nếu không còn hành động hợp lệ nào → trả về None (cắt nhánh sớm).
-    Ngược lại trả về danh sách hành động còn lại.
+    Forward Checking theo BT-Forwd.py: sau khi gán Svar, lọc trước miền S(var+1).
+    Nếu miền kế tiếp rỗng thì cắt nhánh sớm.
     """
-    next_domain = _fc_get_domain(state, problem, visited)
-    if len(next_domain) == 0:
+    next_var = var + 1
+
+    if next_var > depth or next_var in assignment:
+        return domains
+
+    filtered_domain = {
+        value
+        for value in domains[next_var]
+        if _bt_csp_is_consistent(next_var, value, assignment, problem)
+    }
+
+    current_state = _bt_csp_state_from_key(assignment[var])
+    if len(filtered_domain) == 0:
+        add_step(steps,
+                 f"FC-CSP. Sau khi gán S{var}, miền S{next_var} rỗng → CẮT NHÁNH SỚM",
+                 current_state)
         return None
-    return next_domain
 
-
-def _recursive_forward_check(state, problem, depth_limit, current_depth,
-                              path, visited, steps):
-    """
-    Hàm đệ quy cốt lõi của Forward Checking Search.
-
-    Mã giả tương ứng:
-    -----------------
-    function FORWARD_CHECK(state, assignment, visited, depth_limit):
-        if state == goal: return assignment           (assignment complete)
-        if depth >= limit: return failure
-        domain = GET_LEGAL_ACTIONS(state, visited)    (SELECT-UNASSIGNED-VARIABLE)
-        for action in domain:                         (ORDER-DOMAIN-VALUES)
-            next_state = RESULT(state, action)
-            if next_state is CONSISTENT:
-                add to assignment, add to visited
-                if next_state == goal: return assignment
-                removed = FORWARD_CHECKING(next_state, visited)
-                if removed is not None:
-                    result = FORWARD_CHECK(next_state, ...)
-                    if result ≠ failure: return result
-                restore visited, pop assignment        ← QUAY LUI
-        return failure
-    """
-    # assignment complete: đạt goal
-    if problem.goal_test(state):
-        add_step(steps,
-                 f"FC. depth={current_depth}: Đạt goal → trả về lời giải",
-                 state)
-        return True
-
-    # Hết độ sâu
-    if current_depth >= depth_limit:
-        add_step(steps,
-                 f"FC. depth={current_depth} ≥ limit={depth_limit} → quay lui",
-                 state)
-        return False
-
-    # SELECT-UNASSIGNED-VARIABLE: lấy miền giá trị
-    domain = _fc_get_domain(state, problem, visited)
     add_step(steps,
-             f"FC. depth={current_depth}: Miền giá trị = {domain} ({len(domain)} hành động)",
-             state)
+             f"FC-CSP. Sau khi gán S{var}, miền S{next_var} còn {len(filtered_domain)} trạng thái",
+             current_state)
+    new_domains = domains.copy()
+    new_domains[next_var] = filtered_domain
 
-    if not domain:
+    return new_domains
+
+
+def _recursive_forward_check(assignment, domains, depth, problem, steps):
+    """
+    Forward Checking CSP chuẩn hóa theo BT-Forwd.py và kiểu dữ liệu UI_v7.
+
+    assignment[i] là giá trị của biến Si. Sau mỗi phép gán, miền của biến kế
+    tiếp được lọc theo ràng buộc Adjacent và ràng buộc không lặp trạng thái.
+    """
+    if len(assignment) == depth + 1:
+        final_state = _bt_csp_state_from_key(assignment[depth])
         add_step(steps,
-                 f"FC. depth={current_depth}: Miền rỗng → quay lui",
-                 state)
-        return False
+                 f"FC-CSP. Đã gán đủ S0..S{depth} → kiểm tra nghiệm",
+                 final_state)
+        return assignment.copy()
 
-    # ORDER-DOMAIN-VALUES: thử từng hành động
-    for action in domain:
-        next_state = problem.result(state, action)
-        next_key = state_to_tuple(next_state)
+    var = _bt_csp_select_unassigned_variable(assignment, depth)
+    values = _bt_csp_order_domain_values(var, domains, problem)
+    current_state = _bt_csp_state_from_key(assignment.get(var - 1, assignment[0]))
+    add_step(steps,
+             f"FC-CSP. Chọn biến S{var}; miền có {len(values)} trạng thái",
+             current_state)
 
-        # consistent with assignment
-        if next_key in visited:
+    for value in values:
+        candidate_state = _bt_csp_state_from_key(value)
+
+        if not _bt_csp_is_consistent(var, value, assignment, problem):
             add_step(steps,
-                     f"FC. depth={current_depth}: Thử {action} → đã visited → bỏ qua",
-                     next_state)
+                     f"FC-CSP. Thử S{var} nhưng vi phạm ràng buộc → bỏ qua",
+                     candidate_state)
             continue
 
-        # Gán: thêm vào assignment và visited
-        visited.add(next_key)
-        path.append((action, next_state))
+        assignment[var] = value
         add_step(steps,
-                 f"FC. depth={current_depth}: Thử {action} → gán vào assignment",
-                 next_state)
+                 f"FC-CSP. Gán S{var} hợp lệ",
+                 candidate_state)
 
-        # Kiểm tra goal ngay sau khi gán
-        if problem.goal_test(next_state):
-            add_step(steps,
-                     f"FC. depth={current_depth}: {action} đạt goal → trả về lời giải",
-                     next_state)
-            return True
-
-        # FORWARD CHECKING: kiểm tra miền giá trị của bước sau
-        fc_domain = _fc_forward_check(next_state, problem, visited)
-
-        if fc_domain is None:
-            # Miền rỗng → cắt nhánh sớm (đây là điểm khác biệt với Backtracking thuần)
-            add_step(steps,
-                     f"FC. depth={current_depth}: Forward Check sau {action} → miền rỗng → CẮT NHÁNH SỚM",
-                     next_state)
-        else:
-            add_step(steps,
-                     f"FC. depth={current_depth}: Forward Check sau {action} → miền còn {len(fc_domain)} giá trị → đệ quy",
-                     next_state)
-            # Gọi đệ quy
+        checked_domains = _fc_forward_check_domains(var, assignment, domains, depth, problem, steps)
+        if checked_domains is not None:
             result = _recursive_forward_check(
-                next_state, problem, depth_limit, current_depth + 1,
-                path, visited, steps
+                assignment,
+                checked_domains,
+                depth,
+                problem,
+                steps
             )
 
-            if result:
-                return True
+            if result is not None:
+                return result
 
-        # QUAY LUI: restore visited, pop assignment
-        path.pop()
-        visited.remove(next_key)
+        del assignment[var]
         add_step(steps,
-                 f"FC. depth={current_depth}: Nhánh {action} thất bại → QUAY LUI, xóa khỏi visited",
-                 state)
+                 f"FC-CSP. Quay lui khỏi S{var}",
+                 candidate_state)
 
     add_step(steps,
-             f"FC. depth={current_depth}: Mọi giá trị trong miền đều thất bại → trả về failure",
-             state)
-    return False
+             f"FC-CSP. Không còn giá trị hợp lệ cho S{var} → failure",
+             current_state)
+    return None
 
 
 def Forward_Checking_Search(problem, max_depth=40):
     """
-    Forward Checking Search với Iterative Deepening cho 8-puzzle.
+    Forward Checking CSP theo BT-Forwd.py, chuẩn hóa theo UI_v7.
 
-    Mã giả:
-    -------
-    function FORWARD_CHECKING_SEARCH(problem, max_depth):
-      1. NẾU initial == goal: trả về []
-      2. Kiểm tra solvable (parity)
-      3. LẶP depth_limit = 0, 1, ..., max_depth:
-         a. visited = {initial}
-         b. assignment = []
-         c. result = FORWARD_CHECK(initial, assignment, visited, depth_limit)
-         d. NẾU result ≠ failure: trả về assignment
-      4. Trả về failure
+    Biến CSP: S0, S1, ..., Sd.
+    Sau khi gán Si, thuật toán lọc trước miền của S(i+1). Nếu miền này rỗng,
+    nhánh hiện tại bị cắt ngay.
     """
     start_node = Node(problem.initial)
     if problem.goal_test(start_node.state):
         return [], [start_node.state], [(0, "B1. initial đồng thời là goal → trả về", start_node.state)]
 
     steps = new_journal()
-    add_step(steps, "B1. Khởi tạo: kiểm tra parity và bắt đầu Iterative Deepening Forward Checking",
+    add_step(steps, "B1. Khởi tạo Forward Checking CSP: kiểm tra parity và tạo miền theo độ sâu",
              problem.initial)
     failure = parity_failure(problem, steps)
     if failure:
         return failure
 
-    for depth_limit in range(max(0, max_depth) + 1):
+    max_depth = max(0, max_depth)
+    start_key = state_to_tuple(problem.initial)
+    goal_key = state_to_tuple(problem.goal)
+    start_layers = _bt_csp_build_exact_layers(start_key, problem, max_depth)
+    goal_layers = _bt_csp_build_exact_layers(goal_key, problem, max_depth)
+    add_step(steps,
+             f"B2. Đã tạo exact layers từ initial và goal tới max_depth={max_depth}",
+             problem.initial)
+
+    for depth in range(1, max_depth + 1):
+        domains = _bt_csp_build_domains(start_key, goal_key, depth, start_layers, goal_layers)
+        empty_vars = [i for i in range(depth + 1) if len(domains[i]) == 0]
+
         add_step(steps,
-                 f"B2. Bắt đầu Forward Checking với depth_limit={depth_limit}",
+                 f"B3. Thử Forward Checking CSP với depth={depth}; biến S0..S{depth}",
                  problem.initial)
 
-        visited = {state_to_tuple(problem.initial)}
-        path = []
-
-        found = _recursive_forward_check(
-            problem.initial, problem, depth_limit, 0,
-            path, visited, steps
-        )
-
-        if found:
+        if empty_vars:
             add_step(steps,
-                     f"B3. FC depth_limit={depth_limit} tìm thấy goal → trả về lời giải",
-                     path[-1][1] if path else problem.initial)
-            actions_list = [a for a, _ in path]
-            states_list = [problem.initial] + [s for _, s in path]
-            return actions_list, states_list, steps
+                     f"B4. FC-CSP depth={depth} có miền rỗng tại {empty_vars} → tăng độ sâu",
+                     problem.initial)
+            continue
+
+        assignment = {0: start_key}
+        result = _recursive_forward_check(assignment, domains, depth, problem, steps)
+
+        if result is not None:
+            states_list = [_bt_csp_state_from_key(result[i]) for i in range(depth + 1)]
+            if states_list[-1] == problem.goal:
+                actions_list = [
+                    _bt_csp_action_between(states_list[i - 1], states_list[i], problem)
+                    for i in range(1, len(states_list))
+                ]
+                add_step(steps,
+                         f"B4. Forward Checking CSP depth={depth} tìm thấy goal → trả về lời giải",
+                         states_list[-1])
+                return actions_list, states_list, steps
 
         add_step(steps,
-                 f"B3. FC depth_limit={depth_limit} không tìm thấy → tăng giới hạn",
+                 f"B4. Forward Checking CSP depth={depth} không tìm thấy → tăng độ sâu",
                  problem.initial)
 
     add_step(steps,
