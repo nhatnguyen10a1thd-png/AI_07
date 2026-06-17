@@ -66,7 +66,7 @@ class GameScreen(ScreenBase):
         # Bottom controls (general)
         self.btn_menu = Button(
             rect=(30, btn_y, 150, 45),
-            text="← MENU",
+            text="< MENU",
             font=font_body,
             callback=lambda: self.app.switch_to_screen("main_menu"),
             color=(120, 115, 105)
@@ -183,7 +183,7 @@ class GameScreen(ScreenBase):
         # Adjust buttons visibility based on mode
         self.btn_undo.is_enabled = (self.mode == "play")
         
-        # Setup Win Modal — căn giữa theo kích thước màn hình thực tế
+        # Setup Win Modal - căn giữa theo kích thước màn hình thực tế
         win_buttons = [
             {"text": "MENU CHÍNH", "callback": lambda: self.app.switch_to_screen("main_menu"), "color": (120, 115, 105)},
             {"text": "LEVEL TIẾP", "callback": self.next_level_button, "color": (46, 125, 50)},
@@ -333,7 +333,7 @@ class GameScreen(ScreenBase):
 
         # 4. Handle grid clicks for piece selection (Only when not animating)
         if not self.active_animation and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            # Check click on board cells — use responsive layout (khớp với draw())
+            # Check click on board cells - use responsive layout (khớp với draw())
             W = self.app.width
             H = self.app.height
             board_top = self._top + 72
@@ -448,7 +448,7 @@ class GameScreen(ScreenBase):
         )
         surface.blit(diff_surf, (30, sub_y))
 
-        # 2. Board (Left Side) — bắt đầu từ dưới header, lấp đầy chiều cao
+        # 2. Board (Left Side) - bắt đầu từ dưới header, lấp đầy chiều cao
         W = self.app.width
         H = self.app.height
         board_top  = top + 72
@@ -538,7 +538,7 @@ class GameScreen(ScreenBase):
                 for idx in range(start_i, end_i):
                     act       = self.ai_path[idx]
                     highlight = (idx == self.ai_step_idx)
-                    marker    = "→ " if highlight else "  "
+                    marker    = "> " if highlight else "  "
                     text      = f"{marker}Bước {idx+1}: {act[0].upper()} trượt {act[1]}"
                     color     = (46, 125, 50) if highlight else TEXT_COLOR
                     step_surf = (body_bold if highlight else body_font).render(text, True, color)

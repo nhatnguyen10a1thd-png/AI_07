@@ -98,5 +98,5 @@ class MainMenuScreen(ScreenBase):
 
         # Credits
         credit_font = self.app.fonts["body_small"]
-        credit = credit_font.render("Đồ án Trí Tuệ Nhân Tạo  —  Môn học AI Search", True, (160, 155, 145))
+        credit = credit_font.render("Đồ án Trí Tuệ Nhân Tạo  -  Môn học AI Search", True, (160, 155, 145))
         surface.blit(credit, credit.get_rect(centerx=W // 2, y=H - 36))

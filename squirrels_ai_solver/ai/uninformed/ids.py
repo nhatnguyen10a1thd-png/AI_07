@@ -25,7 +25,7 @@ def ids_solve(start_state, rules, max_depth=25, max_nodes=20000, max_seconds=3.0
             steps=[(0, "Start (Goal reached immediately)", start_state)]
         )
 
-    steps = [(0, "Start — IDS bắt đầu tìm kiếm tăng dần độ sâu", start_state)]
+    steps = [(0, "Start - IDS bắt đầu tìm kiếm tăng dần độ sâu", start_state)]
     step_num = [1]
     visited_count = [0]
     generated_count = [1]
@@ -104,7 +104,7 @@ def ids_solve(start_state, rules, max_depth=25, max_nodes=20000, max_seconds=3.0
             actions, _ = reconstruct_path(result_node)
             steps.append((
                 step_num[0],
-                f"✅ Tìm thấy lời giải! Độ sâu = {depth_limit}, Số bước = {len(actions)}",
+                f"[OK] Tìm thấy lời giải! Độ sâu = {depth_limit}, Số bước = {len(actions)}",
                 result_node.state
             ))
             return SearchResult(

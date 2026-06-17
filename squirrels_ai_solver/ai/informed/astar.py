@@ -23,7 +23,7 @@ def astar_solve(start_state, rules, max_nodes=20000, max_seconds=3.0):
             visited_count=1,
             generated_count=1,
             elapsed_time=time.time() - start_time,
-            steps=[(0, f"Start → f={f_start} (g=0, h={h_start})", start_state)]
+            steps=[(0, f"Start -> f={f_start} (g=0, h={h_start})", start_state)]
         )
 
     # Frontier is a priority queue: (f, unique_id, node)
@@ -36,7 +36,7 @@ def astar_solve(start_state, rules, max_nodes=20000, max_seconds=3.0):
     g_score = {start_state.encode(): g_start}
     explored = set()
     
-    steps = [(0, f"Start → f={f_start} (g={g_start}, h={h_start})", start_state)]
+    steps = [(0, f"Start -> f={f_start} (g={g_start}, h={h_start})", start_state)]
     step_num = 1
     visited_count = 0
     generated_count = 1
@@ -89,7 +89,7 @@ def astar_solve(start_state, rules, max_nodes=20000, max_seconds=3.0):
                 depth=node.depth + 1
             )
             generated_count += 1
-            steps.append((step_num, f"{action[0]} {action[1]} → f={f_new} (g={g_new}, h={h_new})", next_state))
+            steps.append((step_num, f"{action[0]} {action[1]} -> f={f_new} (g={g_new}, h={h_new})", next_state))
             step_num += 1
 
             if next_state.is_goal():

@@ -36,7 +36,7 @@ class App:
         self.width  = self.screen.get_width()
         self.height = self.screen.get_height()
 
-        pygame.display.set_caption("Squirrels Go Nuts! — AI Search Solver")
+        pygame.display.set_caption("Squirrels Go Nuts! - AI Search Solver")
         pygame.display.set_icon(make_app_icon())
 
         # Maximize cửa sổ về trạng thái maximize OS (Windows)

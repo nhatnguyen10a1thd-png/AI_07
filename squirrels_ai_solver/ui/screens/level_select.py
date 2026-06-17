@@ -33,7 +33,7 @@ class LevelSelectScreen(ScreenBase):
         # Nút quay lại
         self.back_button = Button(
             rect=(30, top + 10, 155, 40),
-            text="← QUAY LẠI",
+            text="< QUAY LẠI",
             font=self.app.fonts["body_bold"],
             callback=lambda: self.app.switch_to_screen("main_menu"),
             color=(120, 115, 105),
@@ -147,7 +147,7 @@ class LevelSelectScreen(ScreenBase):
             "visualizer": "TRÌNH DIỄN THUẬT TOÁN",
             "report":     "BÁO CÁO HIỆU NĂNG",
         }.get(self.mode, self.mode.upper())
-        header_surf = header_font.render(f"CHỌN LEVEL  —  CHẾ ĐỘ: {mode_str}", True, TEXT_COLOR)
+        header_surf = header_font.render(f"CHỌN LEVEL  -  CHẾ ĐỘ: {mode_str}", True, TEXT_COLOR)
         header_rect = header_surf.get_rect(centerx=W // 2, y=top + 18)
         surface.blit(header_surf, header_rect)
 

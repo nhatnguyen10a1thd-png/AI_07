@@ -35,7 +35,7 @@ class ReportScreen(ScreenBase):
         button_y = H - 65
         # Các nút được đặt theo tỷ lệ chiều rộng màn hình
         self.btn_menu = Button(
-            rect=(50, button_y, 160, 45), text="← MENU CHÍNH", font=font_body,
+            rect=(50, button_y, 160, 45), text="< MENU CHÍNH", font=font_body,
             callback=lambda: self.app.switch_to_screen("main_menu"), color=(120, 115, 105),
         )
         self.btn_levels = Button(
@@ -189,7 +189,7 @@ class ReportScreen(ScreenBase):
         chart_rect = pygame.Rect(margin_x, chart_top, panel_w, chart_h)
         pygame.draw.rect(surface, PANEL_COLOR, chart_rect, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, chart_rect, width=2, border_radius=14)
-        surface.blit(body_bold.render("SO SÁNH SỐ NÚT ĐÃ DUYỆT — ĐỦ TOÀN BỘ THUẬT TOÁN", True, TEXT_COLOR),
+        surface.blit(body_bold.render("SO SÁNH SỐ NÚT ĐÃ DUYỆT - ĐỦ TOÀN BỘ THUẬT TOÁN", True, TEXT_COLOR),
                      (margin_x + 20, chart_top + 12))
 
         max_visited = max(1, max((r.visited_count for r in self.results.values()), default=1))

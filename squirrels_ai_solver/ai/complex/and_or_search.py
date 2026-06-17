@@ -162,7 +162,7 @@ def and_or_solve(start_state, rules, max_depth=8):
             steps.append(
                 (
                     step_num[0],
-                    f"OR: Thử action ({pid}, {direction}) → sinh {len(outcomes_list)} outcome AND",
+                    f"OR: Thử action ({pid}, {direction}) -> sinh {len(outcomes_list)} outcome AND",
                     state,
                 )
             )
@@ -254,7 +254,7 @@ def and_or_solve(start_state, rules, max_depth=8):
                 steps.append(
                     (
                         step_num[0],
-                        f"AND: Outcome {idx}/{len(states)} thất bại → action không dùng được",
+                        f"AND: Outcome {idx}/{len(states)} thất bại -> action không dùng được",
                         out_state,
                     )
                 )

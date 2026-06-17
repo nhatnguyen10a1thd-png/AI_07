@@ -17,7 +17,7 @@ def simulated_annealing_solve(start_state, rules, max_iterations=500, init_temp=
     current_node = SearchNode(start_state)
     current_val = -squirrel_heuristic(start_state)
     
-    steps = [(0, f"Start → Value={current_val}, Temp={init_temp}", start_state)]
+    steps = [(0, f"Start -> Value={current_val}, Temp={init_temp}", start_state)]
     step_num = 1
     visited_count = 1
     generated_count = 1
@@ -64,7 +64,7 @@ def simulated_annealing_solve(start_state, rules, max_iterations=500, init_temp=
             )
             current_val = next_val
             visited_count += 1
-            steps.append((step_num, f"✅ Chọn {action[0]} {action[1]} (Tốt hơn) → Value={next_val}, Temp={temp:.2f}", next_state))
+            steps.append((step_num, f"[OK] Chọn {action[0]} {action[1]} (Tốt hơn) -> Value={next_val}, Temp={temp:.2f}", next_state))
             step_num += 1
         else:
             # Worse or equal state, accept with probability P = exp(delta_E / T)
@@ -80,10 +80,10 @@ def simulated_annealing_solve(start_state, rules, max_iterations=500, init_temp=
                 )
                 current_val = next_val
                 visited_count += 1
-                steps.append((step_num, f"🎲 Chọn {action[0]} {action[1]} (Chấp nhận xấu hơn, P={prob:.3f}) → Value={next_val}, Temp={temp:.2f}", next_state))
+                steps.append((step_num, f"[Random] Chọn {action[0]} {action[1]} (Chấp nhận xấu hơn, P={prob:.3f}) -> Value={next_val}, Temp={temp:.2f}", next_state))
                 step_num += 1
             else:
-                steps.append((step_num, f"Xét {action[0]} {action[1]} (Từ chối, P={prob:.3f}) → Value={next_val}", next_state))
+                steps.append((step_num, f"Xét {action[0]} {action[1]} (Từ chối, P={prob:.3f}) -> Value={next_val}", next_state))
                 step_num += 1
                 
         # Cool down

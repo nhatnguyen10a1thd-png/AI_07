@@ -14,6 +14,26 @@ from ui.screen_manager import ScreenBase
 _HINT_COLOR = (140, 135, 125)
 
 
+def _safe_log_text(text):
+    """Replace symbols that some pygame fonts render as square boxes."""
+    replacements = {
+        "\u2192": "->",
+        "\u2190": "<-",
+        "\u21d2": "=>",
+        "\u279c": "->",
+        "\u2794": "->",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2705": "[OK]",
+        "\u274c": "[X]",
+        "\U0001f3b2": "[Random]",
+        "\u2026": "...",
+    }
+    for source, replacement in replacements.items():
+        text = text.replace(source, replacement)
+    return text
+
+
 class AlgorithmScreen(ScreenBase):
     """Trình diễn thuật toán với nhật ký duyệt đầy đủ và có thể tương tác."""
 
@@ -51,7 +71,7 @@ class AlgorithmScreen(ScreenBase):
         ctrl_y    = top + 36
 
         self.btn_menu = Button(
-            (25, bottom_y, 135, 42), "← MENU", font_body,
+            (25, bottom_y, 135, 42), "< MENU", font_body,
             lambda: self.app.switch_to_screen("main_menu"), color=(120, 115, 105)
         )
         self.btn_levels = Button(
@@ -245,14 +265,14 @@ class AlgorithmScreen(ScreenBase):
         body_small = self.app.fonts["body_small"]
         mono       = self.app.fonts["mono"]
 
-        # ── Tiêu đề trái ────────────────────────────────────────────────
+        # Tieu de trai
         surface.blit(title_font.render("TRÌNH DIỄN THUẬT TOÁN", True, TEXT_COLOR), (25, top + 8))
-        level_name = self.level_meta["name"] if self.level_meta else "—"
+        level_name = self.level_meta["name"] if self.level_meta else "-"
         algo_name  = self.current_algo if self.result else "Chưa chạy"
         subtitle   = f"Màn: {level_name}  |  Thuật toán: {algo_name}"
         surface.blit(body.render(subtitle, True, TEXT_MUTED), (25, top + 38))
 
-        # ── Bảng game (bên trái) ────────────────────────────────────────
+        # Bang game ben trai
         board_rect = pygame.Rect(25, top + 82, int(width * 0.50), height - top - 160)
         if self.current_state:
             draw_board(surface, self.current_state, board_rect)
@@ -261,7 +281,7 @@ class AlgorithmScreen(ScreenBase):
             pygame.draw.rect(surface, PANEL_COLOR, board_rect, border_radius=14)
             pygame.draw.rect(surface, BORDER_COLOR, board_rect, width=2, border_radius=14)
 
-        # ── Panel bên phải ──────────────────────────────────────────────
+        # Panel ben phai
         right_w  = width - right_x - 20
         # Panel chiếm hết từ dưới TitleBar đến trên nút bottom
         panel_h  = height - top - 82
@@ -272,10 +292,10 @@ class AlgorithmScreen(ScreenBase):
         # Nhãn dropdown
         surface.blit(body.render("Chọn thuật toán:", True, TEXT_MUTED), (right_x, ctrl_y - 20))
 
-        # ── Kết quả / trạng thái ────────────────────────────────────────
+        # Ket qua / trang thai
         status_y = ctrl_y + 52
         if self.result is None:
-            # Chưa chạy → hint
+            # Chua chay
             hint_lines = [
                 "Chọn thuật toán ở dropdown",
                 "rồi bấm  BẮT ĐẦU  để xem kết quả.",
@@ -293,10 +313,10 @@ class AlgorithmScreen(ScreenBase):
             )
             surface.blit(body.render(summary, True, TEXT_MUTED), (right_x, status_y + 27))
 
-        # ── Nhật ký duyệt ───────────────────────────────────────────────
+        # Nhat ky duyet
         log_title_y = status_y + 65
         surface.blit(
-            body_bold.render("NHẬT KÝ DUYỆT — click dòng để xem trạng thái", True, TEXT_COLOR),
+            body_bold.render("NHẬT KÝ DUYỆT - click dòng để xem trạng thái", True, TEXT_COLOR),
             (right_x, log_title_y)
         )
 
@@ -309,7 +329,7 @@ class AlgorithmScreen(ScreenBase):
 
         if not self.solver_steps:
             # Placeholder text khi chưa chạy
-            ph = body.render("Chưa có nhật ký — bấm BẮT ĐẦU để chạy thuật toán.", True, _HINT_COLOR)
+            ph = body.render("Chưa có nhật ký - bấm BẮT ĐẦU để chạy thuật toán.", True, _HINT_COLOR)
             surface.blit(ph, ph.get_rect(centerx=self.log_area_rect.centerx,
                                           y=self.log_area_rect.y + 12))
         else:
@@ -326,9 +346,9 @@ class AlgorithmScreen(ScreenBase):
                     pygame.draw.rect(clip, (220, 239, 224),
                                      (3, y, text_width + 10, self.log_row_h - 1), border_radius=4)
                 prefix = ">" if active else " "
-                text   = f"{prefix} [{step_num:04d}] {description}"
+                text   = f"{prefix} [{step_num:04d}] {_safe_log_text(description)}"
                 while mono.size(text)[0] > text_width and len(text) > 4:
-                    text = text[:-2] + "…"
+                    text = text[:-4] + "..."
                 color = (30, 115, 55) if active else TEXT_COLOR
                 clip.blit(mono.render(text, True, color), (8, y + 3))
 
@@ -336,7 +356,7 @@ class AlgorithmScreen(ScreenBase):
 
 
 
-        # ── Dropdown + buttons ───────────────────────────────────────────
+        # Dropdown + buttons
         self.algo_dropdown.draw(surface)
         for button in (
             self.btn_start, self.btn_menu, self.btn_levels, self.btn_reset,
