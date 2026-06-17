@@ -1346,6 +1346,202 @@ def Backtracking_Search(problem, max_depth=40):
 
 
 # ============================================================
+#  THUẬT TOÁN FORWARD CHECKING SEARCH
+# ============================================================
+
+def _fc_get_domain(state, problem, visited):
+    """
+    Trả về danh sách hành động hợp lệ (miền giá trị) của trạng thái,
+    loại bỏ những hành động dẫn đến trạng thái đã visited.
+    """
+    domain = []
+    for action in problem.actions(state):
+        next_state = problem.result(state, action)
+        if state_to_tuple(next_state) not in visited:
+            domain.append(action)
+    return domain
+
+
+def _fc_forward_check(state, problem, visited):
+    """
+    Forward Checking: kiểm tra trước miền giá trị của bước tiếp theo.
+    Nếu không còn hành động hợp lệ nào → trả về None (cắt nhánh sớm).
+    Ngược lại trả về danh sách hành động còn lại.
+    """
+    next_domain = _fc_get_domain(state, problem, visited)
+    if len(next_domain) == 0:
+        return None
+    return next_domain
+
+
+def _recursive_forward_check(state, problem, depth_limit, current_depth,
+                              path, visited, steps):
+    """
+    Hàm đệ quy cốt lõi của Forward Checking Search.
+
+    Mã giả tương ứng:
+    -----------------
+    function FORWARD_CHECK(state, assignment, visited, depth_limit):
+        if state == goal: return assignment           (assignment complete)
+        if depth >= limit: return failure
+        domain = GET_LEGAL_ACTIONS(state, visited)    (SELECT-UNASSIGNED-VARIABLE)
+        for action in domain:                         (ORDER-DOMAIN-VALUES)
+            next_state = RESULT(state, action)
+            if next_state is CONSISTENT:
+                add to assignment, add to visited
+                if next_state == goal: return assignment
+                removed = FORWARD_CHECKING(next_state, visited)
+                if removed is not None:
+                    result = FORWARD_CHECK(next_state, ...)
+                    if result ≠ failure: return result
+                restore visited, pop assignment        ← QUAY LUI
+        return failure
+    """
+    # assignment complete: đạt goal
+    if problem.goal_test(state):
+        add_step(steps,
+                 f"FC. depth={current_depth}: Đạt goal → trả về lời giải",
+                 state)
+        return True
+
+    # Hết độ sâu
+    if current_depth >= depth_limit:
+        add_step(steps,
+                 f"FC. depth={current_depth} ≥ limit={depth_limit} → quay lui",
+                 state)
+        return False
+
+    # SELECT-UNASSIGNED-VARIABLE: lấy miền giá trị
+    domain = _fc_get_domain(state, problem, visited)
+    add_step(steps,
+             f"FC. depth={current_depth}: Miền giá trị = {domain} ({len(domain)} hành động)",
+             state)
+
+    if not domain:
+        add_step(steps,
+                 f"FC. depth={current_depth}: Miền rỗng → quay lui",
+                 state)
+        return False
+
+    # ORDER-DOMAIN-VALUES: thử từng hành động
+    for action in domain:
+        next_state = problem.result(state, action)
+        next_key = state_to_tuple(next_state)
+
+        # consistent with assignment
+        if next_key in visited:
+            add_step(steps,
+                     f"FC. depth={current_depth}: Thử {action} → đã visited → bỏ qua",
+                     next_state)
+            continue
+
+        # Gán: thêm vào assignment và visited
+        visited.add(next_key)
+        path.append((action, next_state))
+        add_step(steps,
+                 f"FC. depth={current_depth}: Thử {action} → gán vào assignment",
+                 next_state)
+
+        # Kiểm tra goal ngay sau khi gán
+        if problem.goal_test(next_state):
+            add_step(steps,
+                     f"FC. depth={current_depth}: {action} đạt goal → trả về lời giải",
+                     next_state)
+            return True
+
+        # FORWARD CHECKING: kiểm tra miền giá trị của bước sau
+        fc_domain = _fc_forward_check(next_state, problem, visited)
+
+        if fc_domain is None:
+            # Miền rỗng → cắt nhánh sớm (đây là điểm khác biệt với Backtracking thuần)
+            add_step(steps,
+                     f"FC. depth={current_depth}: Forward Check sau {action} → miền rỗng → CẮT NHÁNH SỚM",
+                     next_state)
+        else:
+            add_step(steps,
+                     f"FC. depth={current_depth}: Forward Check sau {action} → miền còn {len(fc_domain)} giá trị → đệ quy",
+                     next_state)
+            # Gọi đệ quy
+            result = _recursive_forward_check(
+                next_state, problem, depth_limit, current_depth + 1,
+                path, visited, steps
+            )
+
+            if result:
+                return True
+
+        # QUAY LUI: restore visited, pop assignment
+        path.pop()
+        visited.remove(next_key)
+        add_step(steps,
+                 f"FC. depth={current_depth}: Nhánh {action} thất bại → QUAY LUI, xóa khỏi visited",
+                 state)
+
+    add_step(steps,
+             f"FC. depth={current_depth}: Mọi giá trị trong miền đều thất bại → trả về failure",
+             state)
+    return False
+
+
+def Forward_Checking_Search(problem, max_depth=40):
+    """
+    Forward Checking Search với Iterative Deepening cho 8-puzzle.
+
+    Mã giả:
+    -------
+    function FORWARD_CHECKING_SEARCH(problem, max_depth):
+      1. NẾU initial == goal: trả về []
+      2. Kiểm tra solvable (parity)
+      3. LẶP depth_limit = 0, 1, ..., max_depth:
+         a. visited = {initial}
+         b. assignment = []
+         c. result = FORWARD_CHECK(initial, assignment, visited, depth_limit)
+         d. NẾU result ≠ failure: trả về assignment
+      4. Trả về failure
+    """
+    start_node = Node(problem.initial)
+    if problem.goal_test(start_node.state):
+        return [], [start_node.state], [(0, "B1. initial đồng thời là goal → trả về", start_node.state)]
+
+    steps = new_journal()
+    add_step(steps, "B1. Khởi tạo: kiểm tra parity và bắt đầu Iterative Deepening Forward Checking",
+             problem.initial)
+    failure = parity_failure(problem, steps)
+    if failure:
+        return failure
+
+    for depth_limit in range(max(0, max_depth) + 1):
+        add_step(steps,
+                 f"B2. Bắt đầu Forward Checking với depth_limit={depth_limit}",
+                 problem.initial)
+
+        visited = {state_to_tuple(problem.initial)}
+        path = []
+
+        found = _recursive_forward_check(
+            problem.initial, problem, depth_limit, 0,
+            path, visited, steps
+        )
+
+        if found:
+            add_step(steps,
+                     f"B3. FC depth_limit={depth_limit} tìm thấy goal → trả về lời giải",
+                     path[-1][1] if path else problem.initial)
+            actions_list = [a for a, _ in path]
+            states_list = [problem.initial] + [s for _, s in path]
+            return actions_list, states_list, steps
+
+        add_step(steps,
+                 f"B3. FC depth_limit={depth_limit} không tìm thấy → tăng giới hạn",
+                 problem.initial)
+
+    add_step(steps,
+             f"B4. Đã thử tới max_depth={max_depth} → không tìm thấy lời giải",
+             problem.initial)
+    return None, None, steps
+
+
+# ============================================================
 #  GIAO DIỆN
 # ============================================================
 
@@ -1422,7 +1618,7 @@ class UI:
                 "Hill Climbing", "Stochastic Hill Climbing",
                 "Random Restart HC", "Local Beam Search",
                 "Simulated Annealing", "AND-OR Graph Search",
-                "Backtracking",
+                "Backtracking", "Forward Checking",
             ],
             state="readonly",
             width=22,
@@ -1581,6 +1777,8 @@ class UI:
             return AND_OR_Graph_Search(p, 30)
         if algo == "Backtracking":
             return Backtracking_Search(p, max_depth=params.get("max_depth", 40))
+        if algo == "Forward Checking":
+            return Forward_Checking_Search(p, max_depth=params.get("max_depth", 40))
         return IDS(p, params.get("max_depth", 30))
 
     def run_algorithm(self):
@@ -1590,11 +1788,11 @@ class UI:
         self.auto_running = False
         algo = self.algo_var.get()
         max_depth = 30
-        if algo == "IDS":
+        if algo in ("IDS", "Backtracking", "Forward Checking"):
             try:
                 max_depth = max(0, int(self.depth_var.get()))
             except ValueError:
-                max_depth = 30
+                max_depth = 40 if algo in ("Backtracking", "Forward Checking") else 30
         try:
             max_restart = max(1, int(self.restart_var.get()))
         except ValueError:
@@ -1786,11 +1984,14 @@ class UI:
     def _update_parameter_controls(self):
         """Cho phép nhập độ sâu khi thuật toán là IDS hoặc Backtracking."""
         algo = self.algo_var.get()
-        need_depth = algo in ("IDS", "Backtracking")
+        need_depth = algo in ("IDS", "Backtracking", "Forward Checking")
         state = "normal" if need_depth else "disabled"
         self.depth_spinbox.config(state=state)
         if algo == "Backtracking":
             self.depth_label.config(text="Độ sâu tối đa (BT):", fg="#111827")
+            self.depth_var.set("40")
+        elif algo == "Forward Checking":
+            self.depth_label.config(text="Độ sâu tối đa (FC):", fg="#111827")
             self.depth_var.set("40")
         elif algo == "IDS":
             self.depth_label.config(text="Độ sâu tối đa (IDS):", fg="#111827")
