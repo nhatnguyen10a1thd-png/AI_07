@@ -12,6 +12,7 @@ from tkinter import ttk
 
 JOURNAL_LIMIT = 5000
 _journal_context = threading.local()
+_bt_csp_neighbor_cache = {}
 
 
 class JournalRecorder(list):
@@ -1211,13 +1212,21 @@ def _bt_csp_state_from_key(state_key):
 
 
 def _bt_csp_neighbors(state_key, problem):
+    if state_key in _bt_csp_neighbor_cache:
+        return _bt_csp_neighbor_cache[state_key]
+
     state = _bt_csp_state_from_key(state_key)
     result = []
     for action in problem.actions(state):
         next_state = problem.result(state, action)
         if next_state is not None:
             result.append(state_to_tuple(next_state))
+    _bt_csp_neighbor_cache[state_key] = result
     return result
+
+
+def _bt_csp_adjacent(state_key, next_key, problem):
+    return next_key in _bt_csp_neighbors(state_key, problem)
 
 
 def _bt_csp_action_between(state, next_state, problem):
@@ -1225,6 +1234,17 @@ def _bt_csp_action_between(state, next_state, problem):
         if problem.result(state, action) == next_state:
             return action
     return None
+
+
+def _bt_csp_log_state_from_domains(domains, fallback_key=None):
+    for values in domains.values():
+        if values:
+            return _bt_csp_state_from_key(next(iter(values)))
+
+    if fallback_key is not None:
+        return _bt_csp_state_from_key(fallback_key)
+
+    return [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 
 
 def _bt_csp_build_exact_layers(start_key, problem, max_depth):
@@ -1585,6 +1605,464 @@ def Forward_Checking_Search(problem, max_depth=40):
 
 
 # ============================================================
+#  THUẬT TOÁN AC-3 SEARCH
+# ============================================================
+
+def _ac3_related_variables(var, depth):
+    result = []
+
+    if var - 1 >= 0:
+        result.append(var - 1)
+    if var + 1 <= depth:
+        result.append(var + 1)
+
+    return result
+
+
+def _ac3_init_arcs(depth):
+    arcs = deque()
+
+    for i in range(depth):
+        arcs.append((i, i + 1))
+        arcs.append((i + 1, i))
+
+    return arcs
+
+
+def _ac3_has_support(xi, x_value, xj, y_value, problem):
+    if xj == xi + 1:
+        return _bt_csp_adjacent(x_value, y_value, problem)
+
+    if xj == xi - 1:
+        return _bt_csp_adjacent(y_value, x_value, problem)
+
+    return True
+
+
+def _ac3_revise(domains, xi, xj, problem, steps):
+    """
+    Xóa khỏi D(Sxi) các trạng thái không có trạng thái hỗ trợ trong D(Sxj).
+    Support nghĩa là hai trạng thái kề nhau bằng đúng một nước đi.
+    """
+    removed = set()
+
+    for value in list(domains[xi]):
+        has_support = any(
+            _ac3_has_support(xi, value, xj, other, problem)
+            for other in domains[xj]
+        )
+
+        if not has_support:
+            removed.add(value)
+
+    if not removed:
+        return False
+
+    domains[xi] = domains[xi] - removed
+    sample_state = (
+        _bt_csp_state_from_key(next(iter(domains[xi])))
+        if domains[xi]
+        else _bt_csp_state_from_key(next(iter(removed)))
+    )
+    add_step(steps,
+             f"AC-3. REVISE(S{xi}, S{xj}) xóa {len(removed)} giá trị; D(S{xi}) còn {len(domains[xi])}",
+             sample_state)
+
+    return True
+
+
+def _ac3(domains, depth, problem, steps):
+    arcs = _ac3_init_arcs(depth)
+    processed = 0
+    add_step(steps,
+             f"AC-3. Khởi tạo hàng đợi với {len(arcs)} cung ràng buộc",
+             _bt_csp_log_state_from_domains(domains))
+
+    while arcs:
+        xi, xj = arcs.popleft()
+        processed += 1
+
+        if _ac3_revise(domains, xi, xj, problem, steps):
+            if len(domains[xi]) == 0:
+                add_step(steps,
+                         f"AC-3. D(S{xi}) rỗng sau REVISE → CSP thất bại",
+                         _bt_csp_log_state_from_domains(domains))
+                return False
+
+            for xk in _ac3_related_variables(xi, depth):
+                if xk != xj:
+                    arcs.append((xk, xi))
+
+    add_step(steps,
+             f"AC-3. Hoàn tất arc consistency sau {processed} lần xét cung",
+             _bt_csp_log_state_from_domains(domains))
+    return True
+
+
+def _ac3_backtrack_on_domains(assignment, domains, depth, problem, steps):
+    """
+    AC-3 chỉ lọc miền. Hàm này trích một phép gán đầy đủ từ miền đã lọc
+    để UI có đường đi cụ thể cho phần phát lại.
+    """
+    if len(assignment) == depth + 1:
+        final_state = _bt_csp_state_from_key(assignment[depth])
+        add_step(steps,
+                 f"AC-3. Đã trích đủ S0..S{depth} → kiểm tra nghiệm",
+                 final_state)
+        return assignment.copy()
+
+    var = _bt_csp_select_unassigned_variable(assignment, depth)
+    values = _bt_csp_order_domain_values(var, domains, problem)
+    current_state = _bt_csp_state_from_key(assignment.get(var - 1, assignment[0]))
+    add_step(steps,
+             f"AC-3. Trích nghiệm: chọn S{var}; miền sau AC-3 có {len(values)} trạng thái",
+             current_state)
+
+    for value in values:
+        candidate_state = _bt_csp_state_from_key(value)
+
+        if not _bt_csp_is_consistent(var, value, assignment, problem):
+            continue
+
+        assignment[var] = value
+        add_step(steps,
+                 f"AC-3. Gán S{var} từ miền đã lọc",
+                 candidate_state)
+
+        result = _ac3_backtrack_on_domains(assignment, domains, depth, problem, steps)
+        if result is not None:
+            return result
+
+        del assignment[var]
+        add_step(steps,
+                 f"AC-3. Quay lui khỏi S{var}",
+                 candidate_state)
+
+    add_step(steps,
+             f"AC-3. Không trích được giá trị hợp lệ cho S{var}",
+             current_state)
+    return None
+
+
+def AC3_Search(problem, max_depth=30):
+    """
+    AC-3 áp dụng vào 8-puzzle theo mô hình Planning as CSP.
+
+    Mỗi depth tạo CSP S0..Sd. AC-3 lọc miền bằng các cung (Si, Si+1),
+    sau đó backtracking trên miền đã lọc để lấy đường đi phát lại trong UI.
+    """
+    start_node = Node(problem.initial)
+    if problem.goal_test(start_node.state):
+        return [], [start_node.state], [(0, "B1. initial đồng thời là goal → trả về", start_node.state)]
+
+    steps = new_journal()
+    add_step(steps, "B1. Khởi tạo AC-3 CSP: kiểm tra parity và tạo miền theo độ sâu",
+             problem.initial)
+    failure = parity_failure(problem, steps)
+    if failure:
+        return failure
+
+    max_depth = max(0, max_depth)
+    start_key = state_to_tuple(problem.initial)
+    goal_key = state_to_tuple(problem.goal)
+    start_layers = _bt_csp_build_exact_layers(start_key, problem, max_depth)
+    goal_layers = _bt_csp_build_exact_layers(goal_key, problem, max_depth)
+    add_step(steps,
+             f"B2. Đã tạo exact layers từ initial và goal tới max_depth={max_depth}",
+             problem.initial)
+
+    for depth in range(1, max_depth + 1):
+        domains = _bt_csp_build_domains(start_key, goal_key, depth, start_layers, goal_layers)
+        empty_vars = [i for i in range(depth + 1) if len(domains[i]) == 0]
+
+        add_step(steps,
+                 f"B3. Thử AC-3 CSP với depth={depth}; biến S0..S{depth}",
+                 problem.initial)
+
+        if empty_vars:
+            add_step(steps,
+                     f"B4. AC-3 depth={depth} có miền rỗng tại {empty_vars} → tăng độ sâu",
+                     problem.initial)
+            continue
+
+        ac3_domains = {
+            var: set(values)
+            for var, values in domains.items()
+        }
+
+        if not _ac3(ac3_domains, depth, problem, steps):
+            add_step(steps,
+                     f"B4. AC-3 depth={depth} làm rỗng miền → tăng độ sâu",
+                     problem.initial)
+            continue
+
+        assignment = {0: start_key}
+        result = _ac3_backtrack_on_domains(assignment, ac3_domains, depth, problem, steps)
+
+        if result is not None:
+            states_list = [_bt_csp_state_from_key(result[i]) for i in range(depth + 1)]
+            if states_list[-1] == problem.goal:
+                actions_list = [
+                    _bt_csp_action_between(states_list[i - 1], states_list[i], problem)
+                    for i in range(1, len(states_list))
+                ]
+                add_step(steps,
+                         f"B4. AC-3 depth={depth} tìm thấy goal → trả về lời giải",
+                         states_list[-1])
+                return actions_list, states_list, steps
+
+        add_step(steps,
+                 f"B4. AC-3 depth={depth} chưa trích được nghiệm → tăng độ sâu",
+                 problem.initial)
+
+    add_step(steps,
+             f"B5. Đã thử tới max_depth={max_depth} → không tìm thấy lời giải",
+             problem.initial)
+    return None, None, steps
+
+
+# ============================================================
+#  THUẬT TOÁN MIN-CONFLICTS SEARCH
+# ============================================================
+
+def _mc_edge_conflict_count(assignment, var, value, problem):
+    conflicts = 0
+
+    if var - 1 in assignment and not _bt_csp_adjacent(assignment[var - 1], value, problem):
+        conflicts += 1
+
+    if var + 1 in assignment and not _bt_csp_adjacent(value, assignment[var + 1], problem):
+        conflicts += 1
+
+    return conflicts
+
+
+def _mc_duplicate_conflict_count(assignment, var, value):
+    conflicts = 0
+
+    for other_var, other_value in assignment.items():
+        if other_var != var and other_value == value:
+            conflicts += 1
+
+    return conflicts
+
+
+def _mc_variable_conflict_count(assignment, var, problem):
+    value = assignment[var]
+    return (
+        _mc_edge_conflict_count(assignment, var, value, problem)
+        + _mc_duplicate_conflict_count(assignment, var, value)
+    )
+
+
+def _mc_total_conflicts(assignment, depth, problem):
+    conflicts = 0
+
+    for i in range(depth):
+        if not _bt_csp_adjacent(assignment[i], assignment[i + 1], problem):
+            conflicts += 1
+
+    seen = {}
+    for var, value in assignment.items():
+        seen.setdefault(value, []).append(var)
+
+    for vars_with_same_value in seen.values():
+        n = len(vars_with_same_value)
+        if n > 1:
+            conflicts += n * (n - 1) // 2
+
+    return conflicts
+
+
+def _mc_conflicted_variables(assignment, depth, problem):
+    result = []
+
+    for var in range(1, depth):
+        if _mc_variable_conflict_count(assignment, var, problem) > 0:
+            result.append(var)
+
+    return result
+
+
+def _mc_value_conflict_score(assignment, var, value, problem):
+    old_value = assignment[var]
+    assignment[var] = value
+
+    score = _mc_variable_conflict_count(assignment, var, problem)
+
+    if var - 1 in assignment:
+        score += _mc_variable_conflict_count(assignment, var - 1, problem)
+
+    if var + 1 in assignment:
+        score += _mc_variable_conflict_count(assignment, var + 1, problem)
+
+    assignment[var] = old_value
+    return score
+
+
+def _mc_create_random_assignment(domains, depth, problem):
+    assignment = {
+        0: next(iter(domains[0])),
+        depth: next(iter(domains[depth])),
+    }
+
+    for var in range(1, depth):
+        values = list(domains[var])
+
+        if not values:
+            return None
+
+        values.sort(
+            key=lambda state_key: (
+                manhattan_distance(_bt_csp_state_from_key(state_key), problem.goal),
+                random.random(),
+            )
+        )
+        sample_size = min(10, len(values))
+        assignment[var] = random.choice(values[:sample_size])
+
+    return assignment
+
+
+def _mc_min_conflicts_for_depth(domains, depth, problem, max_steps, max_restarts, steps):
+    if depth <= 1:
+        assignment = _mc_create_random_assignment(domains, depth, problem)
+        if assignment and _mc_total_conflicts(assignment, depth, problem) == 0:
+            return assignment.copy()
+        return None
+
+    for restart in range(1, max_restarts + 1):
+        assignment = _mc_create_random_assignment(domains, depth, problem)
+
+        if assignment is None:
+            continue
+
+        add_step(steps,
+                 f"Min-Conflicts. Restart {restart}/{max_restarts}: tạo assignment đầy đủ",
+                 _bt_csp_state_from_key(assignment[0]))
+
+        for step in range(max_steps):
+            conflict_count = _mc_total_conflicts(assignment, depth, problem)
+
+            if conflict_count == 0:
+                add_step(steps,
+                         f"Min-Conflicts. Restart {restart}, step={step}: hết xung đột",
+                         _bt_csp_state_from_key(assignment[depth]))
+                return assignment.copy()
+
+            if step % 200 == 0:
+                add_step(steps,
+                         f"Min-Conflicts. Restart {restart}, step={step}: còn {conflict_count} xung đột",
+                         _bt_csp_state_from_key(assignment[0]))
+
+            conflicted = _mc_conflicted_variables(assignment, depth, problem)
+
+            if not conflicted:
+                candidates = []
+                if not _bt_csp_adjacent(assignment[0], assignment[1], problem):
+                    candidates.append(1)
+                if not _bt_csp_adjacent(assignment[depth - 1], assignment[depth], problem):
+                    candidates.append(depth - 1)
+                conflicted = candidates
+
+            if not conflicted:
+                return assignment.copy()
+
+            var = random.choice(conflicted)
+            scored_values = []
+
+            for value in domains[var]:
+                score = _mc_value_conflict_score(assignment, var, value, problem)
+                tie_breaker = manhattan_distance(_bt_csp_state_from_key(value), problem.goal)
+                scored_values.append((score, tie_breaker, random.random(), value))
+
+            if not scored_values:
+                break
+
+            min_score = min(item[0] for item in scored_values)
+            best_values = [
+                value
+                for score, _, _, value in scored_values
+                if score == min_score
+            ]
+            assignment[var] = random.choice(best_values)
+
+    return None
+
+
+def Min_Conflicts_Search(problem, max_depth=30, max_steps=20000, max_restarts=80):
+    """
+    Min-Conflicts theo mô hình CSP: tạo assignment đầy đủ S0..Sd rồi sửa
+    biến trung gian đang gây xung đột cho tới khi thỏa Adjacent và không lặp.
+    """
+    start_node = Node(problem.initial)
+    if problem.goal_test(start_node.state):
+        return [], [start_node.state], [(0, "B1. initial đồng thời là goal → trả về", start_node.state)]
+
+    steps = new_journal()
+    add_step(steps, "B1. Khởi tạo Min-Conflicts CSP: kiểm tra parity và tạo miền theo độ sâu",
+             problem.initial)
+    failure = parity_failure(problem, steps)
+    if failure:
+        return failure
+
+    max_depth = max(0, max_depth)
+    max_steps = max(1, int(max_steps))
+    max_restarts = max(1, int(max_restarts))
+    start_key = state_to_tuple(problem.initial)
+    goal_key = state_to_tuple(problem.goal)
+    start_layers = _bt_csp_build_exact_layers(start_key, problem, max_depth)
+    goal_layers = _bt_csp_build_exact_layers(goal_key, problem, max_depth)
+    add_step(steps,
+             f"B2. Đã tạo exact layers từ initial và goal tới max_depth={max_depth}",
+             problem.initial)
+
+    for depth in range(1, max_depth + 1):
+        domains = _bt_csp_build_domains(start_key, goal_key, depth, start_layers, goal_layers)
+        empty_vars = [i for i in range(depth + 1) if len(domains[i]) == 0]
+
+        add_step(steps,
+                 f"B3. Thử Min-Conflicts CSP với depth={depth}; biến S0..S{depth}",
+                 problem.initial)
+
+        if empty_vars:
+            add_step(steps,
+                     f"B4. Min-Conflicts depth={depth} có miền rỗng tại {empty_vars} → tăng độ sâu",
+                     problem.initial)
+            continue
+
+        result = _mc_min_conflicts_for_depth(
+            domains,
+            depth,
+            problem,
+            max_steps,
+            max_restarts,
+            steps,
+        )
+
+        if result is not None and _mc_total_conflicts(result, depth, problem) == 0:
+            states_list = [_bt_csp_state_from_key(result[i]) for i in range(depth + 1)]
+            if states_list[-1] == problem.goal:
+                actions_list = [
+                    _bt_csp_action_between(states_list[i - 1], states_list[i], problem)
+                    for i in range(1, len(states_list))
+                ]
+                add_step(steps,
+                         f"B4. Min-Conflicts depth={depth} tìm thấy goal → trả về lời giải",
+                         states_list[-1])
+                return actions_list, states_list, steps
+
+        add_step(steps,
+                 f"B4. Min-Conflicts depth={depth} chưa hội tụ → tăng độ sâu",
+                 problem.initial)
+
+    add_step(steps,
+             f"B5. Đã thử tới max_depth={max_depth} → không tìm thấy lời giải",
+             problem.initial)
+    return None, None, steps
+
+
+# ============================================================
 #  GIAO DIỆN
 # ============================================================
 
@@ -1661,7 +2139,7 @@ class UI:
                 "Hill Climbing", "Stochastic Hill Climbing",
                 "Random Restart HC", "Local Beam Search",
                 "Simulated Annealing", "AND-OR Graph Search",
-                "Backtracking", "Forward Checking",
+                "Backtracking", "Forward Checking", "AC-3", "Min-Conflicts",
             ],
             state="readonly",
             width=22,
@@ -1822,6 +2300,15 @@ class UI:
             return Backtracking_Search(p, max_depth=params.get("max_depth", 40))
         if algo == "Forward Checking":
             return Forward_Checking_Search(p, max_depth=params.get("max_depth", 40))
+        if algo == "AC-3":
+            return AC3_Search(p, max_depth=params.get("max_depth", 30))
+        if algo == "Min-Conflicts":
+            return Min_Conflicts_Search(
+                p,
+                max_depth=params.get("max_depth", 30),
+                max_steps=20000,
+                max_restarts=params.get("max_restart", 80),
+            )
         return IDS(p, params.get("max_depth", 30))
 
     def run_algorithm(self):
@@ -1831,7 +2318,7 @@ class UI:
         self.auto_running = False
         algo = self.algo_var.get()
         max_depth = 30
-        if algo in ("IDS", "Backtracking", "Forward Checking"):
+        if algo in ("IDS", "Backtracking", "Forward Checking", "AC-3", "Min-Conflicts"):
             try:
                 max_depth = max(0, int(self.depth_var.get()))
             except ValueError:
@@ -1908,7 +2395,8 @@ class UI:
     def _show_error(self, error):
         self.has_run = False
         self.status.config(text="Thuật toán gặp lỗi")
-        self.summary.config(text=str(error), fg="#dc2626")
+        message = str(error) or error.__class__.__name__
+        self.summary.config(text=message, fg="#dc2626")
 
     def _apply_result(self, algo, result):
         actions, solution_states, all_steps = result
@@ -2025,9 +2513,9 @@ class UI:
         self.init_empty()
 
     def _update_parameter_controls(self):
-        """Cho phép nhập độ sâu khi thuật toán là IDS hoặc Backtracking."""
+        """Cho phép nhập độ sâu cho các thuật toán cần giới hạn độ sâu."""
         algo = self.algo_var.get()
-        need_depth = algo in ("IDS", "Backtracking", "Forward Checking")
+        need_depth = algo in ("IDS", "Backtracking", "Forward Checking", "AC-3", "Min-Conflicts")
         state = "normal" if need_depth else "disabled"
         self.depth_spinbox.config(state=state)
         if algo == "Backtracking":
@@ -2036,6 +2524,12 @@ class UI:
         elif algo == "Forward Checking":
             self.depth_label.config(text="Độ sâu tối đa (FC):", fg="#111827")
             self.depth_var.set("40")
+        elif algo == "AC-3":
+            self.depth_label.config(text="Độ sâu tối đa (AC-3):", fg="#111827")
+            self.depth_var.set("30")
+        elif algo == "Min-Conflicts":
+            self.depth_label.config(text="Độ sâu tối đa (MC):", fg="#111827")
+            self.depth_var.set("30")
         elif algo == "IDS":
             self.depth_label.config(text="Độ sâu tối đa (IDS):", fg="#111827")
         else:
@@ -2189,9 +2683,9 @@ class UI:
 if __name__ == "__main__":
     root = tk.Tk()
     initial = [
-        [2, 8, 0],
-        [1, 6, 4],
-        [7, 5, 3]
+        [1, 2, 3],
+        [4, 0, 6],
+        [7, 5, 8]
     ]
     goal = [
         [1, 2, 3],
