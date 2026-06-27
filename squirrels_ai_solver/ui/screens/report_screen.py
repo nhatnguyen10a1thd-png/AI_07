@@ -149,7 +149,8 @@ class ReportScreen(ScreenBase):
         margin_x  = 50
         panel_w   = W - 2 * margin_x
         panel_top = top + 78
-        panel_h   = 26 * (len(ALGORITHMS) + 1) + 45
+        row_h     = max(18, min(26, (H - panel_top - 245) // max(1, len(ALGORITHMS) + 1)))
+        panel_h   = row_h * (len(ALGORITHMS) + 1) + 45
         panel_rect = pygame.Rect(margin_x, panel_top, panel_w, panel_h)
         pygame.draw.rect(surface, PANEL_COLOR, panel_rect, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, panel_rect, width=2, border_radius=14)
@@ -162,15 +163,15 @@ class ReportScreen(ScreenBase):
         for x, header in zip(col_xs, headers):
             surface.blit(body_bold.render(header, True, (139, 115, 85)), (x, hdr_y))
         pygame.draw.line(surface, BORDER_COLOR,
-                         (margin_x + 10, hdr_y + 26),
-                         (margin_x + panel_w - 10, hdr_y + 26), 2)
+                         (margin_x + 10, hdr_y + row_h),
+                         (margin_x + panel_w - 10, hdr_y + row_h), 2)
 
         for index, name in enumerate(ALGORITHMS):
             result = self.results.get(name) or self._pending_results()[name]
-            row_y = hdr_y + 30 + index * 26
+            row_y = hdr_y + row_h + 4 + index * row_h
             if index % 2:
                 pygame.draw.rect(surface, (250, 248, 244),
-                                 (margin_x + 8, row_y - 2, panel_w - 16, 24), border_radius=5)
+                                 (margin_x + 8, row_y - 2, panel_w - 16, row_h), border_radius=5)
             status, status_color = self._status(result)
             values = [
                 (str(index + 1),                                     body_small, TEXT_MUTED),
@@ -185,7 +186,7 @@ class ReportScreen(ScreenBase):
 
         # Biểu đồ thanh
         chart_top = panel_top + panel_h + 14
-        chart_h   = max(160, H - chart_top - 80)
+        chart_h   = max(90, H - chart_top - 95)
         chart_rect = pygame.Rect(margin_x, chart_top, panel_w, chart_h)
         pygame.draw.rect(surface, PANEL_COLOR, chart_rect, border_radius=14)
         pygame.draw.rect(surface, BORDER_COLOR, chart_rect, width=2, border_radius=14)
@@ -211,9 +212,13 @@ class ReportScreen(ScreenBase):
                              (x, bar_bottom - bar_h, bar_w, bar_h), border_radius=5)
             label = (
                 name.replace("Simulated ", "Sim. ")
+                .replace("Hill Climbing", "Hill")
+                .replace("Local Beam", "Beam")
                 .replace("Backtracking", "BT")
+                .replace("Expectimax", "Expect.")
                 .replace("AND-OR Search", "AND-OR")
                 .replace("Belief-State", "Belief")
+                .replace("Online Search", "Online")
             )
             text = body_small.render(label, True, TEXT_COLOR)
             surface.blit(text, text.get_rect(centerx=x + bar_w // 2, y=bar_bottom + 4))

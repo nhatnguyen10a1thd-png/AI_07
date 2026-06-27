@@ -49,16 +49,20 @@ class AlgorithmScreen(ScreenBase):
         self.result        = None       # None = chưa chạy
         self.solver_steps  = []
         self.step_idx      = 0
-        self.current_algo  = list(ALGORITHMS.keys())[2]  # mặc định A*
+        self.current_algo  = "A*" if "A*" in ALGORITHMS else next(iter(ALGORITHMS))
         self.is_playing    = False
         self.play_timer    = 0.0
         self.play_speed    = 0.55
 
         self.log_scroll_offset = 0
+        self.log_x_offset      = 0
+        self.log_content_width = 0
         self.log_row_h         = 25
         self.log_visible_rows  = 1
         self.log_area_rect     = pygame.Rect(0, 0, 0, 0)
+        self.log_view_rect     = pygame.Rect(0, 0, 0, 0)
         self.log_scrollbar     = Scrollbar((0, 0, 12, 100), self._set_log_offset)
+        self.log_h_scrollbar   = Scrollbar((0, 0, 100, 12), self._set_log_x_offset, orientation="horizontal")
         self.setup_ui()
 
     # ------------------------------------------------------------------
@@ -86,7 +90,7 @@ class AlgorithmScreen(ScreenBase):
 
         self.algo_dropdown = Dropdown(
             (right_x, ctrl_y, 255, 38), list(ALGORITHMS.keys()),
-            self.app.fonts["body_bold"], default_index=2
+            self.app.fonts["body_bold"], default_index=list(ALGORITHMS.keys()).index(self.current_algo)
         )
         self.btn_start = Button(
             (right_x + 270, ctrl_y, 110, 38), "BẮT ĐẦU", font_btn,
@@ -141,6 +145,8 @@ class AlgorithmScreen(ScreenBase):
         self.solver_steps      = []
         self.step_idx          = 0
         self.log_scroll_offset = 0
+        self.log_x_offset      = 0
+        self.log_content_width = 0
         self.is_playing        = False
         self.play_timer        = 0.0
         self.setup_ui()
@@ -154,6 +160,8 @@ class AlgorithmScreen(ScreenBase):
         self.solver_steps      = []
         self.step_idx          = 0
         self.log_scroll_offset = 0
+        self.log_x_offset      = 0
+        self.log_content_width = 0
         self.play_timer        = 0.0
         self.set_playing(False)
 
@@ -167,6 +175,8 @@ class AlgorithmScreen(ScreenBase):
         self.play_timer    = 0.0
         self.set_playing(False)
         self.log_scroll_offset = 0
+        self.log_x_offset      = 0
+        self._refresh_log_content_width()
         self.current_state = self.solver_steps[0][2]
 
     def next_step(self):
@@ -197,16 +207,45 @@ class AlgorithmScreen(ScreenBase):
     def _set_log_offset(self, offset):
         self.log_scroll_offset = offset
 
+    def _set_log_x_offset(self, offset):
+        self.log_x_offset = offset
+
+    def _refresh_log_content_width(self):
+        mono = self.app.fonts["mono"]
+        self.log_content_width = 0
+        for step_num, description, _ in self.solver_steps:
+            text = f"  [{step_num:04d}] {_safe_log_text(description)}"
+            self.log_content_width = max(self.log_content_width, mono.size(text)[0])
+
     def _sync_scrollbar(self):
-        self.log_visible_rows = max(1, (self.log_area_rect.height - 8) // self.log_row_h)
+        pad = 4
+        bar_size = 10
+        gap = 4
+        self.log_view_rect = pygame.Rect(
+            self.log_area_rect.x + pad,
+            self.log_area_rect.y + pad,
+            max(1, self.log_area_rect.width - pad * 2 - bar_size - gap),
+            max(1, self.log_area_rect.height - pad * 2 - bar_size - gap),
+        )
+        self.log_visible_rows = max(1, self.log_view_rect.height // self.log_row_h)
         self.log_scrollbar.rect = pygame.Rect(
-            self.log_area_rect.right - 14, self.log_area_rect.y + 4,
-            10, self.log_area_rect.height - 8
+            self.log_area_rect.right - pad - bar_size, self.log_view_rect.y,
+            bar_size, self.log_view_rect.height
         )
         self.log_scrollbar.configure(
             len(self.solver_steps), self.log_visible_rows, self.log_scroll_offset
         )
         self.log_scroll_offset = self.log_scrollbar.offset
+        self.log_h_scrollbar.rect = pygame.Rect(
+            self.log_view_rect.x, self.log_area_rect.bottom - pad - bar_size,
+            self.log_view_rect.width, bar_size
+        )
+        self.log_h_scrollbar.configure(
+            max(self.log_view_rect.width, self.log_content_width + 8),
+            self.log_view_rect.width,
+            self.log_x_offset,
+        )
+        self.log_x_offset = self.log_h_scrollbar.offset
 
     def _auto_scroll_log(self):
         max_offset = max(0, len(self.solver_steps) - self.log_visible_rows)
@@ -228,16 +267,22 @@ class AlgorithmScreen(ScreenBase):
             return
 
         self._sync_scrollbar()
+        if self.log_h_scrollbar.handle_event(event):
+            return
+
         if self.log_scrollbar.handle_event(event):
             return
 
-        if event.type == pygame.MOUSEWHEEL and self.log_area_rect.collidepoint(pygame.mouse.get_pos()):
-            self.log_scrollbar.scroll(-event.y * 3)
+        if event.type == pygame.MOUSEWHEEL and self.log_view_rect.collidepoint(pygame.mouse.get_pos()):
+            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                self.log_h_scrollbar.scroll(-event.y * 40)
+            else:
+                self.log_scrollbar.scroll(-event.y * 3)
             return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.log_area_rect.collidepoint(event.pos) and self.solver_steps:
-                row   = (event.pos[1] - self.log_area_rect.y - 4) // self.log_row_h
+            if self.log_view_rect.collidepoint(event.pos) and self.solver_steps:
+                row   = (event.pos[1] - self.log_view_rect.y) // self.log_row_h
                 index = self.log_scroll_offset + row
                 if 0 <= index < len(self.solver_steps):
                     self.step_idx      = index
@@ -330,11 +375,11 @@ class AlgorithmScreen(ScreenBase):
         if not self.solver_steps:
             # Placeholder text khi chưa chạy
             ph = body.render("Chưa có nhật ký - bấm BẮT ĐẦU để chạy thuật toán.", True, _HINT_COLOR)
-            surface.blit(ph, ph.get_rect(centerx=self.log_area_rect.centerx,
-                                          y=self.log_area_rect.y + 12))
+            surface.blit(ph, ph.get_rect(centerx=self.log_view_rect.centerx,
+                                          y=self.log_view_rect.y + 8))
         else:
-            clip       = surface.subsurface(self.log_area_rect)
-            text_width = self.log_area_rect.width - 28
+            clip       = surface.subsurface(self.log_view_rect)
+            view_width = self.log_view_rect.width
             for row in range(self.log_visible_rows):
                 index = self.log_scroll_offset + row
                 if index >= len(self.solver_steps):
@@ -344,15 +389,14 @@ class AlgorithmScreen(ScreenBase):
                 active = (index == self.step_idx)
                 if active:
                     pygame.draw.rect(clip, (220, 239, 224),
-                                     (3, y, text_width + 10, self.log_row_h - 1), border_radius=4)
+                                     (0, y, view_width, self.log_row_h - 1), border_radius=4)
                 prefix = ">" if active else " "
                 text   = f"{prefix} [{step_num:04d}] {_safe_log_text(description)}"
-                while mono.size(text)[0] > text_width and len(text) > 4:
-                    text = text[:-4] + "..."
                 color = (30, 115, 55) if active else TEXT_COLOR
-                clip.blit(mono.render(text, True, color), (8, y + 3))
+                clip.blit(mono.render(text, True, color), (4 - self.log_x_offset, y + 3))
 
         self.log_scrollbar.draw(surface)
+        self.log_h_scrollbar.draw(surface)
 
 
 
